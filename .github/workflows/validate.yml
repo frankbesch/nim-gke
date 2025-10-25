@@ -1,0 +1,89 @@
+name: Validate NIM-GKE
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint-scripts:
+    name: Lint Shell Scripts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install shellcheck
+        run: sudo apt-get install -y shellcheck
+      
+      - name: Lint deployment scripts
+        run: |
+          find scripts/ -name "*.sh" -exec shellcheck -x {} \;
+      
+      - name: Check script permissions
+        run: |
+          find scripts/ -name "*.sh" -exec test -x {} \; || \
+          (echo "Error: Some scripts are not executable" && exit 1)
+
+  validate-yaml:
+    name: Validate YAML
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install yamllint
+        run: pip install yamllint
+      
+      - name: Lint Helm values
+        run: |
+          yamllint -d "{extends: default, rules: {line-length: {max: 120}}}" \
+            charts/values-production.yaml
+
+  validate-docs:
+    name: Validate Documentation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Check for broken links
+        run: |
+          npm install -g markdown-link-check
+          find docs/ -name "*.md" -exec markdown-link-check {} \;
+      
+      - name: Verify required docs exist
+        run: |
+          required_docs=(
+            "README.md"
+            "docs/ARCHITECTURE.md"
+            "docs/INTERVIEW_BRIEF.md"
+            "runbooks/troubleshooting.md"
+          )
+          for doc in "${required_docs[@]}"; do
+            if [ ! -f "$doc" ]; then
+              echo "Missing required doc: $doc"
+              exit 1
+            fi
+          done
+
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Check for hardcoded secrets
+        run: |
+          if grep -r "NGC_CLI_API_KEY.*=" scripts/ --exclude="*.template"; then
+            echo "Error: Found hardcoded NGC API keys"
+            exit 1
+          fi
+      
+      - name: Scan for sensitive patterns
+        run: |
+          patterns=("password" "secret" "key" "token")
+          for pattern in "${patterns[@]}"; do
+            if grep -ri "$pattern.*=.*['\"]" scripts/ | grep -v template | grep -v "^\s*#"; then
+              echo "Warning: Found potential hardcoded $pattern"
+            fi
+          done
+

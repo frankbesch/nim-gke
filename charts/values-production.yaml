@@ -1,0 +1,14 @@
+image:
+  repository: "nvcr.io/nim/meta/llama3-8b-instruct"
+  tag: "1.0.0"
+model:
+  ngcAPISecret: ngc-api
+persistence:
+  enabled: true
+imagePullSecrets:
+  - name: registry-secret
+resources:
+  limits:
+    nvidia.com/gpu: 1
+  requests:
+    nvidia.com/gpu: 1

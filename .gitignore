@@ -1,0 +1,45 @@
+# NGC API Keys and Secrets
+set_ngc_key.sh
+*.key
+*.secret
+
+# Binaries
+ngc
+ngccli_*.zip
+*.tgz
+*.tar.gz
+
+# Terraform
+*.tfstate
+*.tfstate.*
+.terraform/
+.terraform.lock.hcl
+
+# Kubernetes
+kubeconfig
+*.kubeconfig
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Environment-specific
+.env
+.env.local
