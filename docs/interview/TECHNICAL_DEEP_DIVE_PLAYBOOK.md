@@ -798,7 +798,7 @@ kubectl create -f https://raw.githubusercontent.com/NVIDIA/dcgm-exporter/main/dc
   gcloud iam service-accounts add-iam-policy-binding \
     nim-sa@your-gcp-project.iam.gserviceaccount.com \
     --role roles/iam.workloadIdentityUser \
-    --member "serviceAccount:nim-on-gke.svc.id.goog[nim/nim-sa]"
+    --member "serviceAccount:YOUR_PROJECT_ID.svc.id.goog[nim/nim-sa]"
   ```
 
 - [ ] **Secret Rotation**: Automated NGC API key rotation

@@ -5,7 +5,7 @@
 Before you start, verify:
 - [ ] ✅ Received GPU quota approval email from Google Cloud
 - [ ] ✅ Email subject: "Quota increase request approved"
-- [ ] ✅ Checked your quota at: https://console.cloud.google.com/iam-admin/quotas?project=nim-on-gke
+- [ ] ✅ Checked your quota at: https://console.cloud.google.com/iam-admin/quotas?project=YOUR_PROJECT_ID
 
 ---
 
@@ -80,7 +80,7 @@ Once deployed:
 gcloud compute regions describe us-central1 | grep GPU
 
 # View quotas page
-open "https://console.cloud.google.com/iam-admin/quotas?project=nim-on-gke"
+open "https://console.cloud.google.com/iam-admin/quotas?project=YOUR_PROJECT_ID"
 ```
 
 ### Deployment stuck?
