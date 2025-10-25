@@ -220,7 +220,7 @@ source ./set_ngc_key.sh
 ### GCP Project
 
 ```bash
-Project ID:  nim-on-gke
+Project ID:  your-gcp-project
 Region:      us-central1
 Zone:        us-central1-a
 ```
