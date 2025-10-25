@@ -19,7 +19,7 @@
 ### Step 1: Open Quotas Page
 
 **Direct Link:**
-https://console.cloud.google.com/iam-admin/quotas?project=nim-on-gke
+https://console.cloud.google.com/iam-admin/quotas?project=YOUR_PROJECT_ID
 
 ### Step 2: Find GPU Quotas
 
