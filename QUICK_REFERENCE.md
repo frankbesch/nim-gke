@@ -107,7 +107,6 @@ gcloud container clusters get-credentials nim-demo --zone=us-central1-a
 | `scripts/test_nim.sh` | Basic test |
 | `charts/values-production.yaml` | Helm config |
 | `runbooks/troubleshooting.md` | Incident response |
-| `SESSION_STATE.md` | Current state |
 
 ---
 
@@ -148,5 +147,4 @@ gcloud container clusters list
 - **Docs**: `docs/ARCHITECTURE.md`
 - **Runbook**: `runbooks/troubleshooting.md`
 - **Scripts**: `scripts/README.md`
-- **Session**: `SESSION_STATE.md`
 
