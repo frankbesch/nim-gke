@@ -200,7 +200,7 @@ configure_secrets() {
     
     # NGC API key secret
     kubectl create secret generic ngc-api \
-        --from-literal=NGC_CLI_API_KEY="$NGC_CLI_API_KEY" \
+        --from-literal=NGC_API_KEY="$NGC_CLI_API_KEY" \
         -n "$NIM_NAMESPACE" \
         --dry-run=client -o yaml | kubectl apply -f -
     

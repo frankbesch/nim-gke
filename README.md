@@ -62,7 +62,7 @@ NIM container → TensorRT-LLM → vLLM backend → L4 GPU → GKE node pool
 
 **Autoscaling**: GPU node pool scales 0→2 based on pod requests.
 
-**Cost**: ~$1.36/hour when active. $0/hour when scaled to zero.
+**Cost**: ~$1.36/hour when active on the production path (not re-measured). $0/hour when scaled to zero. The basic path (`deploy_nim_gke.sh`) was measured on 2026-09-27: about $0.98/hour while up, and $0.43 for a full deploy, smoke test, and destroy ([run receipt](docs/runs/2026-09-27-measured-run.md)).
 
 ---
 

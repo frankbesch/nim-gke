@@ -81,7 +81,7 @@ kubectl create secret docker-registry registry-secret \
   --dry-run=client -o yaml | kubectl apply -f -
 
 kubectl create secret generic ngc-api \
-  --from-literal=NGC_CLI_API_KEY=${NGC_CLI_API_KEY} \
+  --from-literal=NGC_API_KEY=${NGC_CLI_API_KEY} \
   -n nim \
   --dry-run=client -o yaml | kubectl apply -f -
 

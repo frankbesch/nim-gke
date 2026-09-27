@@ -8,7 +8,7 @@
 set -e  # Exit on error
 
 # --- [0] CONFIGURATION VARIABLES ---
-export PROJECT_ID="your-gcp-project"
+export PROJECT_ID="${PROJECT_ID:-your-gcp-project}"   # set PROJECT_ID in the environment
 export REGION="us-central1"
 export ZONE="us-central1-a"
 export CLUSTER_NAME="nim-demo"
@@ -25,14 +25,20 @@ echo "   Cluster: ${CLUSTER_NAME}"
 echo "   GPU Type: ${GPU_TYPE}"
 echo ""
 
-# --- [1] Check NGC API Key ---
-if [[ -z "${NGC_CLI_API_KEY}" ]]; then
-  echo "❌ ERROR: NGC_CLI_API_KEY environment variable is not set!"
-  echo "   Please get your API key from: https://org.ngc.nvidia.com/setup/api-key"
-  echo "   Then run: export NGC_CLI_API_KEY='your-key-here'"
+# --- [1] Check NGC API Key and project ---
+# The nim-llm chart reads the key NGC_API_KEY; NGC_CLI_API_KEY is still accepted.
+export NGC_API_KEY="${NGC_API_KEY:-${NGC_CLI_API_KEY:-}}"
+if [[ -z "${NGC_API_KEY}" ]]; then
+  echo "❌ ERROR: NGC_API_KEY environment variable is not set!"
+  echo "   Create a Personal Key with the NGC Catalog service: https://org.ngc.nvidia.com/setup/api-key"
+  echo "   Then run: export NGC_API_KEY='your-key-here'"
   exit 1
 else
-  echo "✅ NGC_CLI_API_KEY is set"
+  echo "✅ NGC_API_KEY is set"
+fi
+if [[ "${PROJECT_ID}" == "your-gcp-project" ]]; then
+  echo "❌ ERROR: set PROJECT_ID to your GCP project (export PROJECT_ID=...)"
+  exit 1
 fi
 
 # --- [2] Verify Prerequisites ---
@@ -117,7 +123,7 @@ echo ""
 echo "📦 Fetching NIM LLM Helm chart..."
 helm fetch https://helm.ngc.nvidia.com/nim/charts/nim-llm-1.3.0.tgz \
   --username='$oauthtoken' \
-  --password=${NGC_CLI_API_KEY}
+  --password=${NGC_API_KEY}
 
 echo "✅ Helm chart downloaded: nim-llm-1.3.0.tgz"
 
@@ -134,13 +140,13 @@ echo "🔐 Configuring Kubernetes secrets..."
 kubectl create secret docker-registry registry-secret \
   --docker-server=nvcr.io \
   --docker-username='$oauthtoken' \
-  --docker-password=${NGC_CLI_API_KEY} \
+  --docker-password=${NGC_API_KEY} \
   -n nim \
   --dry-run=client -o yaml | kubectl apply -f -
 
 # NGC API key secret
 kubectl create secret generic ngc-api \
-  --from-literal=NGC_CLI_API_KEY=${NGC_CLI_API_KEY} \
+  --from-literal=NGC_API_KEY=${NGC_API_KEY} \
   -n nim \
   --dry-run=client -o yaml | kubectl apply -f -
 
@@ -155,7 +161,7 @@ image:
   repository: "nvcr.io/nim/meta/llama3-8b-instruct" # container location
   tag: "1.0.0" # NIM version you want to deploy
 model:
-  ngcAPISecret: ngc-api  # name of a secret in the cluster that includes a key named NGC_CLI_API_KEY
+  ngcAPISecret: ngc-api  # name of a secret in the cluster that includes a key named NGC_API_KEY
 persistence:
   enabled: true
 imagePullSecrets:
