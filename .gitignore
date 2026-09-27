@@ -46,3 +46,6 @@ temp/
 
 # Local editor prompts
 .cursor/
+
+# cleanup.sh resource dumps
+nim_*_backup.yaml

@@ -177,7 +177,7 @@ gcloud container clusters resize nim-demo --num-nodes=0 --zone=us-central1-a --n
 ## 🎓 What You Just Deployed
 
 - **Model**: Meta Llama 3 8B Instruct
-- **Backend**: TensorRT-LLM or vLLM profile, chosen by NIM at startup (not recorded for the measured run)
+- **Backend**: `vllm-fp16-tp1`, the one profile NIM 1.0.0 offers on the L4 ([run 2](runs/2026-09-27-run-2.md#backend-profile))
 - **GPU**: NVIDIA L4 (24 GB)
 - **API**: OpenAI-compatible REST API
 - **Scale**: Kubernetes autoscaling ready

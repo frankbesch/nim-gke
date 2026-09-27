@@ -38,7 +38,7 @@ are preserved.
 
 ## Architecture
 
-NIM container → L4 GPU → GKE node pool. NIM picks a backend profile (TensorRT-LLM or vLLM) at startup for the detected GPU; which profile ran on the L4 in the measured run was not recorded.
+NIM container → L4 GPU → GKE node pool. NIM picks a backend profile at startup for the detected GPU; on the L4 it found one compatible profile, `vllm-fp16-tp1` (vLLM, FP16), per the [run 2 pod log](docs/runs/2026-09-27-run-2.md#backend-profile).
 
 **Components**:
 - **Model**: Meta Llama 3 8B Instruct
@@ -233,7 +233,8 @@ nim-gke/
 │   ├── cleanup.sh               # Resource deletion
 │   └── monitor_deployment.sh    # Status monitoring
 ├── docs/                       # Documentation
-│   ├── runs/2026-09-27-measured-run.md  # Measured numbers (source of truth)
+│   ├── runs/2026-09-27-measured-run.md  # Measured run 1 (source of truth)
+│   ├── runs/2026-09-27-run-2.md         # Measured run 2, updated scripts
 │   ├── PRODUCTION_GUIDE.md     # Operations manual
 │   ├── GPU_QUOTA_GUIDE.md      # Quota request process
 │   └── QUICKSTART.md
@@ -281,21 +282,23 @@ an optional override.
 
 ## Cost and Performance
 
-Measured once, on `deploy_nim_gke.sh`, project `nim-on-gke`,
+Measured twice on 2026-09-27 with `deploy_nim_gke.sh`, project `nim-on-gke`,
 `us-central1-a`, chart `nim-llm-1.3.0`, image
-`nvcr.io/nim/meta/llama3-8b-instruct:1.0.0`. Full detail, methodology, and
-list-price sources: [docs/runs/2026-09-27-measured-run.md](docs/runs/2026-09-27-measured-run.md).
+`nvcr.io/nim/meta/llama3-8b-instruct:1.0.0`, backend profile `vllm-fp16-tp1`.
+Run 2 used the scripts after the review fixes. Full detail, methodology, and
+list-price sources: [run 1](docs/runs/2026-09-27-measured-run.md),
+[run 2](docs/runs/2026-09-27-run-2.md).
 This is the only cost/performance table in the repo; other docs link here.
 
-| Metric | Value |
-|--------|-------|
-| Deploy time, script start to pod Ready | 20 m 19 s |
-| Time to first token (5 streamed requests) | p50 0.29 s, max 0.30 s |
-| Output throughput, single stream | p50 15.9 tokens/s, min 15.2 |
-| Latency, 20 requests, 256 max tokens, temp 0 | p50 11.1 s, p95 16.0 s |
-| Cost for one full deploy + smoke test + destroy | $0.43 |
-| Running cost while the deployment is up | ~$0.98/hour |
-| Output cost, single stream, GPU node only | ~$12 per million output tokens |
+| Metric | Run 1 | Run 2 |
+|--------|-------|-------|
+| Deploy time, script start to pod Ready | 20 m 19 s | 18 m 53 s |
+| Time to first token (5 streamed requests) | p50 0.29 s, max 0.30 s | p50 0.19 s, max 0.21 s |
+| Output throughput, single stream | p50 15.9 tokens/s, min 15.2 | p50 15.9 tokens/s, min 15.5 |
+| Latency, 20 requests, 256 max tokens, temp 0 | p50 11.1 s, p95 16.0 s | p50 11.1 s, p95 16.1 s |
+| Cost for one full deploy + smoke test + destroy | $0.43 | $0.40 (plus an orphaned disk, since fixed in `cleanup.sh`) |
+| Running cost while the deployment is up | ~$0.98/hour | ~$0.98/hour |
+| Output cost, single stream, GPU node only | ~$12 per million output tokens | same |
 
 Notes:
 - `g2-standard-4` with 1× L4 is priced as one bundled SKU: $0.7068/hour

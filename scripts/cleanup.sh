@@ -86,11 +86,29 @@ echo ""
 echo "🧹 Uninstalling helm release (if present)..."
 helm uninstall "${NIM_RELEASE_NAME}" -n "${NIM_NAMESPACE}" || echo "  (no release to uninstall)"
 
+# The model-store disk can only be deleted after the pod releases it. Deleting
+# the cluster before the CSI driver removes the PV orphans a billing disk
+# (seen in the 2026-09-27 run 2: a 50 GiB pd-balanced disk survived a 10 s wait).
+pvs_in_namespace() {  # PV names whose claim is in namespace $1, from `kubectl get pv -o json` on stdin
+  python3 -c 'import json, sys
+for pv in json.load(sys.stdin).get("items", []):
+    if (pv.get("spec", {}).get("claimRef") or {}).get("namespace") == sys.argv[1]:
+        print(pv["metadata"]["name"])' "$1"
+}
+pvs="$(kubectl get pv -o json 2>/dev/null | pvs_in_namespace "${NIM_NAMESPACE}" || true)"
+
+echo "⏳ Waiting for NIM pods to terminate..."
+kubectl wait --for=delete pod --all -n "${NIM_NAMESPACE}" --timeout=300s || echo "  (pods still terminating; continuing)"
+
 echo "🧹 Deleting PVCs (if present)..."
 kubectl delete pvc --all -n "${NIM_NAMESPACE}" || echo "  (no PVCs to delete)"
 
-echo "⏳ Waiting briefly for PVs to release..."
-sleep 10
+if [[ -n "${pvs}" ]]; then
+  echo "⏳ Waiting for persistent volumes (and their disks) to be deleted..."
+  for pv in ${pvs}; do
+    kubectl wait --for=delete "pv/${pv}" --timeout=300s || echo "  ⚠️  ${pv} not deleted in 5 min; the disk check below will catch it"
+  done
+fi
 
 echo ""
 echo "🗑️  Deleting GKE cluster: ${CLUSTER_NAME}"

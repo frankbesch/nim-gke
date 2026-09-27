@@ -135,12 +135,17 @@ PYEOF
 
 # 6. No existing cluster with CLUSTER_NAME.
 check_no_cluster() {
-  local existing
+  # stdout only: gcloud warns on stderr when the filter matches nothing,
+  # and that warning must not read as a cluster name.
+  local existing err
+  err="$(mktemp)"
   existing="$(gcloud container clusters list --project="${PROJECT_ID}" \
-    --filter="name=${CLUSTER_NAME}" --format='value(name)' 2>&1)" || {
-    echo "gcloud container clusters list failed: ${existing}"
+    --filter="name=${CLUSTER_NAME}" --format='value(name)' 2>"${err}")" || {
+    echo "gcloud container clusters list failed: $(cat "${err}")"
+    rm -f "${err}"
     return 1
   }
+  rm -f "${err}"
   if [[ -n "${existing}" ]]; then
     echo "cluster ${CLUSTER_NAME} already exists"
     return 1

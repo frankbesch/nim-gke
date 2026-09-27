@@ -17,7 +17,7 @@ StatefulSet (my-nim-nim-llm-0)
     ↓
 NIM Container (nvcr.io/nim/meta/llama3-8b-instruct:1.0.0)
     ↓
-Inference backend (TensorRT-LLM or vLLM profile, chosen by NIM at startup)
+Inference backend (profile vllm-fp16-tp1 on the L4, chosen by NIM at startup)
     ↓
 NVIDIA L4 GPU (24GB VRAM, Tensor Cores)
 ```
@@ -60,12 +60,12 @@ NVIDIA L4 GPU (24GB VRAM, Tensor Cores)
 - Registry: `nvcr.io/nim/meta/llama3-8b-instruct`
 - Tag: `1.0.0`
 
-**Inference backend**: NIM picks a backend profile (TensorRT-LLM or vLLM) at startup for the detected GPU; which profile ran on the L4 in the measured run was not recorded.
+**Inference backend**: NIM picks a backend profile at startup for the detected GPU; on the L4 it found one compatible profile, `vllm-fp16-tp1` (vLLM, FP16), per the [run 2 pod log](runs/2026-09-27-run-2.md#backend-profile).
 Profile selection is visible in the pod log at startup
 (`kubectl logs my-nim-nim-llm-0 -n nim | grep -i profile`).
 
 **Model**: Llama 3 8B Instruct (decoder-only transformer, 8B parameters,
-8,192-token context). Precision depends on the selected profile.
+8,192-token context). FP16 on the L4 (profile `vllm-fp16-tp1`).
 
 ---
 
