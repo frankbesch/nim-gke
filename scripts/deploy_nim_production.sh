@@ -17,7 +17,7 @@ validate_environment() {
     echo "🔍 Validating environment..."
 
     # Check required tools
-    local tools=("gcloud" "kubectl" "helm")
+    local tools=("gcloud" "kubectl" "helm" "jq")
     for tool in "${tools[@]}"; do
         if ! command -v "$tool" &> /dev/null; then
             echo "❌ $tool not found. Please install it first."
@@ -258,15 +258,10 @@ verify_deployment() {
         exit 1
     fi
 
-    # Check if service is ready
-    local service_ip
-    service_ip=$(kubectl get service "${NIM_RELEASE_NAME}-nim-llm" -n "${NIM_NAMESPACE}" -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
-
-    if [[ -z "$service_ip" ]]; then
-        echo "⚠️  LoadBalancer IP not assigned yet (may take a few minutes)"
-    else
-        echo "✅ Service IP: $service_ip"
-    fi
+    # The chart's service is ClusterIP (no external IP); reach it by port-forward.
+    kubectl get service "${NIM_RELEASE_NAME}-nim-llm" -n "${NIM_NAMESPACE}" > /dev/null
+    echo "✅ Service ${NIM_RELEASE_NAME}-nim-llm exists (ClusterIP)"
+    echo "   Access: kubectl port-forward -n ${NIM_NAMESPACE} svc/${NIM_RELEASE_NAME}-nim-llm 8000:8000"
 
     echo "✅ Deployment verification complete"
 }

@@ -117,6 +117,14 @@ enable_apis() {
 }
 
 # --- [5] QUOTA VALIDATION ---
+# Print the integer limit of one quota metric from gcloud JSON on stdin (empty if absent).
+quota_limit() {
+    python3 -c 'import json, sys
+m = sys.argv[1]
+d = json.load(sys.stdin)
+print(next((int(q["limit"]) for q in d.get("quotas", []) if q.get("metric") == m), ""))' "$1"
+}
+
 validate_quotas() {
     echo "📊 Validating quotas..."
 
@@ -124,7 +132,7 @@ validate_quotas() {
 
     # Check CPU quota
     local cpu_quota
-    cpu_quota=$(gcloud compute project-info describe --project="${PROJECT_ID}" --format="value(quotas.metric,quotas.limit)" | tr ';' '\n' | grep "CPUS_ALL_REGIONS" | cut -d',' -f2)
+    cpu_quota=$(gcloud compute project-info describe --project="${PROJECT_ID}" --format=json | quota_limit CPUS_ALL_REGIONS)
 
     if [[ -z "$cpu_quota" ]] || [[ "$cpu_quota" -lt 8 ]]; then
         echo "⚠️  CPU quota may be insufficient (need at least 8 CPUs)"
@@ -136,7 +144,7 @@ validate_quotas() {
 
     # Check GPU quota
     local gpu_quota
-    gpu_quota=$(gcloud compute regions describe "${REGION}" --project="${PROJECT_ID}" --format="value(quotas.metric,quotas.limit)" | tr ';' '\n' | grep "NVIDIA_L4_GPUS" | cut -d',' -f2)
+    gpu_quota=$(gcloud compute regions describe "${REGION}" --project="${PROJECT_ID}" --format=json | quota_limit NVIDIA_L4_GPUS)
 
     if [[ -z "$gpu_quota" ]] || [[ "$gpu_quota" -lt 1 ]]; then
         echo "❌ GPU quota insufficient (need at least 1 NVIDIA L4 GPU)"

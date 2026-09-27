@@ -53,7 +53,8 @@ jobs:
       - name: Check for broken links
         run: |
           npm install -g markdown-link-check
-          find docs/ -name "*.md" -print0 | xargs -0 -n1 markdown-link-check
+          # Relative links only (external URLs are ignored via .markdown-link-check.json).
+          git ls-files -z "*.md" | xargs -0 -n1 markdown-link-check -q -c .markdown-link-check.json
 
       - name: Verify required docs exist
         run: |
@@ -85,9 +86,9 @@ jobs:
           # NGC_CLI_API_KEY: not a $-expansion, and not an obvious placeholder.
           # grep exits 0 on a hit, 1 on no hit, 2 on error; treat 2 as a failure too.
           rc=0
-          grep -rnP --exclude="*.template" --exclude-dir=.git \
+          grep -rnP --exclude-dir=.git \
               '(NGC_(CLI_)?API_KEY)\s*=\s*[\\"'"'"']*(?!\$)(?!your-key)(?!your_key)(?!<)(?!\.\.\.)(?!nvapi-x)[^"'"'"'\\\s]+' \
-              scripts/ docs/ runbooks/ CONTRIBUTING.md || rc=$?
+              scripts/ docs/ runbooks/ examples/ README.md QUICK_REFERENCE.md CONTRIBUTING.md || rc=$?
           if [ "$rc" -eq 0 ]; then
             echo "Error: Found a literal NGC key value assigned in source"
             exit 1
@@ -99,8 +100,8 @@ jobs:
           # Scan for NGC key-shaped strings anywhere (e.g. nvapi-XXXXXXXXXX...),
           # excluding the documented placeholder pattern (nvapi-x...x).
           rc=0
-          grep -rnP --exclude="*.template" --exclude-dir=.git \
-              'nvapi-(?!x{15,})[A-Za-z0-9_-]{20,}' scripts/ docs/ runbooks/ CONTRIBUTING.md || rc=$?
+          grep -rnP --exclude-dir=.git \
+              'nvapi-(?!x{15,})[A-Za-z0-9_-]{20,}' scripts/ docs/ runbooks/ examples/ README.md QUICK_REFERENCE.md CONTRIBUTING.md || rc=$?
           if [ "$rc" -eq 0 ]; then
             echo "Error: Found an NGC key-shaped string"
             exit 1

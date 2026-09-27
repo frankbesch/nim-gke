@@ -177,7 +177,7 @@ gcloud container clusters resize nim-demo --num-nodes=0 --zone=us-central1-a --n
 ## 🎓 What You Just Deployed
 
 - **Model**: Meta Llama 3 8B Instruct
-- **Optimization**: NVIDIA TensorRT
+- **Backend**: TensorRT-LLM or vLLM profile, chosen by NIM at startup (not recorded for the measured run)
 - **GPU**: NVIDIA L4 (24 GB)
 - **API**: OpenAI-compatible REST API
 - **Scale**: Kubernetes autoscaling ready

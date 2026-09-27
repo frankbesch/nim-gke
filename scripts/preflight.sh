@@ -78,8 +78,8 @@ print(d.get("token") or d.get("access_token") or "")' <<<"${token_json}" 2>/dev/
     return 1
   fi
   local status
-  status="$(curl -s -o /dev/null -w '%{http_code}' \
-    -H "Authorization: Bearer ${token}" \
+  # Bearer token goes through a curl config on stdin, not the command line.
+  status="$(printf 'header = "Authorization: Bearer %s"\n' "${token}" | curl -K - -s -o /dev/null -w '%{http_code}' \
     -H 'Accept: application/vnd.oci.image.manifest.v1+json,application/vnd.docker.distribution.manifest.v2+json' \
     --head "https://nvcr.io/v2/${repo_path}/manifests/${NIM_IMAGE_TAG}" 2>&1)" || {
     echo "manifest HEAD request failed"

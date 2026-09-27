@@ -23,7 +23,7 @@ health_check() {
     echo "🏥 Performing health check..."
     
     # Check if port-forward is running
-    if ! curl -s "http://localhost:$TEST_PORT/health" > /dev/null 2>&1; then
+    if ! curl -s "http://localhost:$TEST_PORT/v1/health/ready" > /dev/null 2>&1; then
         echo "⚠️  Port-forward not detected"
         echo ""
         echo "Please run this in a separate terminal:"
@@ -36,7 +36,7 @@ health_check() {
     
     # Test health endpoint
     local health_response
-    health_response=$(curl -s "http://localhost:$TEST_PORT/health" 2>/dev/null || echo "FAILED")
+    health_response=$(curl -s "http://localhost:$TEST_PORT/v1/health/ready" 2>/dev/null || echo "FAILED")
     
     if [[ "$health_response" == "FAILED" ]]; then
         echo "❌ Health check failed"

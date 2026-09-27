@@ -17,9 +17,7 @@ StatefulSet (my-nim-nim-llm-0)
     ↓
 NIM Container (nvcr.io/nim/meta/llama3-8b-instruct:1.0.0)
     ↓
-vLLM Runtime (continuous batching, FP16)
-    ↓
-TensorRT-LLM Engine (optimized kernels)
+Inference backend (TensorRT-LLM or vLLM profile, chosen by NIM at startup)
     ↓
 NVIDIA L4 GPU (24GB VRAM, Tensor Cores)
 ```
@@ -61,117 +59,29 @@ NVIDIA L4 GPU (24GB VRAM, Tensor Cores)
 **Container Image**:
 - Registry: `nvcr.io/nim/meta/llama3-8b-instruct`
 - Tag: `1.0.0`
-- Size: 6.4GB (compressed), 16GB (on disk)
-- Base: Ubuntu 22.04 + CUDA 12.2
 
-**Inference Stack**:
+**Inference backend**: NIM picks a backend profile (TensorRT-LLM or vLLM) at startup for the detected GPU; which profile ran on the L4 in the measured run was not recorded.
+Profile selection is visible in the pod log at startup
+(`kubectl logs my-nim-nim-llm-0 -n nim | grep -i profile`).
 
-1. **vLLM** (serving layer)
-   - Continuous batching for throughput
-   - PagedAttention for memory efficiency
-   - Dynamic batch size based on load
-
-2. **TensorRT-LLM** (optimization layer)
-   - FP16 precision (2× faster than FP32)
-   - Fused kernels for attention/MLP
-   - KV cache optimization
-
-3. **CUDA Runtime**
-   - GPU memory management
-   - Kernel execution
-   - Multi-stream processing
-
-**Model**:
-- Architecture: Llama 3 8B (decoder-only transformer)
-- Parameters: 8 billion
-- Context length: 8192 tokens
-- Vocabulary: 128,000 tokens
-- Quantization: FP16 (16GB weights + activations)
+**Model**: Llama 3 8B Instruct (decoder-only transformer, 8B parameters,
+8,192-token context). Precision depends on the selected profile.
 
 ---
 
 ### Kubernetes Resources
 
-#### StatefulSet
+Facts below come from `helm template my-nim` on chart `nim-llm-1.3.0` with this
+repo's values; render it yourself to see full manifests.
 
-```yaml
-apiVersion: apps/v1
-kind: StatefulSet
-metadata:
-  name: my-nim-nim-llm
-  namespace: nim
-spec:
-  replicas: 1
-  serviceName: my-nim-nim-llm-sts
-  selector:
-    matchLabels:
-      app: my-nim-nim-llm
-  template:
-    spec:
-      containers:
-      - name: nim-llm
-        image: nvcr.io/nim/meta/llama3-8b-instruct:1.0.0
-        resources:
-          limits:
-            nvidia.com/gpu: 1
-          requests:
-            nvidia.com/gpu: 1
-            memory: "8Gi"
-            cpu: "2"
-        volumeMounts:
-        - name: model-cache
-          mountPath: /opt/nim/.cache
-  volumeClaimTemplates:
-  - metadata:
-      name: model-cache
-    spec:
-      accessModes: ["ReadWriteOnce"]
-      resources:
-        requests:
-          storage: 50Gi
-```
-
-**Why StatefulSet**:
-- Persistent volume binding (model cache survives restarts)
-- Stable pod identity for debugging
-- Ordered startup/shutdown for multi-replica
-
-**GPU Resource Request**:
-- `nvidia.com/gpu: 1` triggers GPU node scheduling
-- Cluster autoscaler creates GPU node if none available
-- Device plugin binds GPU to container
-
-#### Service
-
-**ClusterIP** (internal access):
-```yaml
-apiVersion: v1
-kind: Service
-metadata:
-  name: my-nim-nim-llm
-  namespace: nim
-spec:
-  type: ClusterIP
-  ports:
-  - port: 8000
-    targetPort: 8000
-    protocol: TCP
-  selector:
-    app: my-nim-nim-llm
-```
-
-**Headless Service** (StatefulSet coordination):
-```yaml
-apiVersion: v1
-kind: Service
-metadata:
-  name: my-nim-nim-llm-sts
-  namespace: nim
-spec:
-  clusterIP: None
-  selector:
-    app: my-nim-nim-llm
-```
+| Resource | Name | Notes |
+|---|---|---|
+| StatefulSet | `my-nim-nim-llm` | 1 replica; pod `my-nim-nim-llm-0`; label `app.kubernetes.io/name: nim-llm` |
+| Service (ClusterIP) | `my-nim-nim-llm` | port 8000; target of `kubectl port-forward` |
+| Service (headless) | `my-nim-nim-llm-sts` | `clusterIP: None`; StatefulSet identity |
+| Volume | `model-store` | mounted at `/model-store`; PVC from `volumeClaimTemplates`, retained when the pod is deleted (cleanup.sh deletes it) |
+| Probes | `/v1/health/live`, `/v1/health/ready` | liveness, readiness, and startup |
+| ConfigMap | `my-nim-nim-llm-scripts-configmap` | chart helper scripts, mounted at `/scripts` |
 
 #### Secrets
 
@@ -192,10 +102,10 @@ Two secrets in namespace `nim`, both created by `ngc_apply_secrets` in
 2. **Port forward** → Local port 8000 → Service port 8000
 3. **Service** → Load balance to pod
 4. **NIM API server** → Parse request, validate
-5. **vLLM scheduler** → Queue request, batch with others
-6. **TensorRT-LLM** → Execute optimized kernels on GPU
+5. **Backend scheduler** → Queue request, batch with others
+6. **Backend engine** → Execute kernels on the GPU
 7. **GPU** → Compute attention, MLP, decode tokens
-8. **vLLM** → Stream tokens back (if requested)
+8. **NIM API** → Stream tokens back (if requested)
 9. **NIM API** → Format OpenAI-compatible response
 10. **Client** → Receive completion
 
@@ -208,8 +118,8 @@ throughput 15.9 tokens/s. These are n=20 and n=5 samples, not a load test.
 
 1. **Pod starts** → Check the `model-store` volume for the model
 2. **If missing** → Download from NGC (measured: 8 m 39 s from container start to Ready)
-3. **vLLM init** → Load weights to GPU memory
-4. **TensorRT-LLM** → Build/load optimized engines
+3. **Profile selection** → NIM picks a backend profile for the GPU
+4. **Backend init** → Load weights to GPU memory
 5. **Warmup** → Run dummy inference to compile kernels
 6. **Ready** → Health probe succeeds, service traffic
 
@@ -234,7 +144,7 @@ cache uses the rest and scales with concurrent requests.
 **KV Cache Sizing**:
 - 1 request × 8192 ctx = ~256MB
 - 24 concurrent requests = ~6GB
-- vLLM automatically manages allocation
+- The inference backend manages allocation
 
 ### Node Resources
 
@@ -370,7 +280,7 @@ metadata:
 spec:
   podSelector:
     matchLabels:
-      app: my-nim-nim-llm
+      app.kubernetes.io/name: nim-llm
   policyTypes:
   - Ingress
   - Egress
@@ -434,7 +344,7 @@ kubectl logs -f my-nim-nim-llm-0 -n nim
 ### Tracing (Future)
 
 Integrate OpenTelemetry:
-- Trace request through API → vLLM → TensorRT
+- Trace request through API → backend → GPU
 - Identify bottlenecks (queuing vs. compute)
 - Export to Cloud Trace or Jaeger
 

@@ -71,6 +71,16 @@ echo ""
 echo "🔑 Getting cluster credentials..."
 gcloud container clusters get-credentials "${CLUSTER_NAME}" --zone="${ZONE}" --project="${PROJECT_ID}"
 
+# --- Confirm current context is this cluster before dumping resources ---
+current_context="$(kubectl config current-context 2>/dev/null || true)"
+if [[ "${current_context}" == *"${CLUSTER_NAME}"* ]]; then
+  echo "💾 Saving cluster information..."
+  kubectl get all -n "${NIM_NAMESPACE}" > nim_resources_backup.yaml 2>/dev/null || true
+  kubectl get configmaps -n "${NIM_NAMESPACE}" -o yaml > nim_configmaps_backup.yaml 2>/dev/null || true
+else
+  echo "⚠️  kubectl context (${current_context}) does not match cluster ${CLUSTER_NAME}; skipping resource dump"
+fi
+
 # --- Uninstall the release and delete PVCs before tearing down the cluster ---
 echo ""
 echo "🧹 Uninstalling helm release (if present)..."
@@ -81,16 +91,6 @@ kubectl delete pvc --all -n "${NIM_NAMESPACE}" || echo "  (no PVCs to delete)"
 
 echo "⏳ Waiting briefly for PVs to release..."
 sleep 10
-
-# --- Confirm current context is this cluster before dumping resources ---
-current_context="$(kubectl config current-context 2>/dev/null || true)"
-if [[ "${current_context}" == *"${CLUSTER_NAME}"* ]]; then
-  echo "💾 Saving cluster information..."
-  kubectl get all -n "${NIM_NAMESPACE}" > nim_resources_backup.yaml 2>/dev/null || true
-  kubectl get configmaps -n "${NIM_NAMESPACE}" -o yaml > nim_configmaps_backup.yaml 2>/dev/null || true
-else
-  echo "⚠️  kubectl context (${current_context}) does not match cluster ${CLUSTER_NAME}; skipping resource dump"
-fi
 
 echo ""
 echo "🗑️  Deleting GKE cluster: ${CLUSTER_NAME}"
@@ -109,8 +109,11 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 echo ""
 
 # --- Check for leftover disks; do not auto-delete ---
-echo "🔍 Checking for leftover persistent disks in ${ZONE}..."
-leftover_disks="$(gcloud compute disks list --project="${PROJECT_ID}" --filter="zone:(${ZONE})" --format="value(name)" || true)"
+echo "🔍 Checking for leftover persistent disks in project ${PROJECT_ID}..."
+if ! leftover_disks="$(gcloud compute disks list --project="${PROJECT_ID}" --format="value(name,zone)")"; then
+  echo "❗ Could not list disks; check the console for leftover disks (they bill)." >&2
+  exit 1
+fi
 if [[ -n "${leftover_disks}" ]]; then
   suspect_disks="$(echo "${leftover_disks}" | grep -i -- "${CLUSTER_NAME}\|pvc-" || true)"
   if [[ -n "${suspect_disks}" ]]; then
@@ -120,7 +123,7 @@ if [[ -n "${leftover_disks}" ]]; then
     echo "✅ No disks matching cluster name or 'pvc-' found"
   fi
 else
-  echo "✅ No disks found in ${ZONE}"
+  echo "✅ No disks found in project ${PROJECT_ID}"
 fi
 
 echo ""
@@ -130,15 +133,6 @@ echo "   - nim_configmaps_backup.yaml"
 echo ""
 echo "🔄 To redeploy, run: ./deploy_nim_gke.sh"
 echo ""
-
-# Optional: Clean up local files
-read -p "🧹 Delete local helm charts and config files? (yes/no): " CLEAN_LOCAL
-
-if [[ "${CLEAN_LOCAL}" == "yes" ]]; then
-  rm -f nim-llm-*.tgz
-  rm -f nim_custom_value.yaml
-  echo "✅ Local files cleaned up"
-fi
 
 echo ""
 if [[ -n "${leftover_disks}" && -n "${suspect_disks:-}" ]]; then

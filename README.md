@@ -38,7 +38,7 @@ are preserved.
 
 ## Architecture
 
-NIM container (TensorRT-LLM + vLLM backend) → L4 GPU → GKE node pool
+NIM container → L4 GPU → GKE node pool. NIM picks a backend profile (TensorRT-LLM or vLLM) at startup for the detected GPU; which profile ran on the L4 in the measured run was not recorded.
 
 **Components**:
 - **Model**: Meta Llama 3 8B Instruct
@@ -170,6 +170,7 @@ kubectl top pod -n nim
 
 ```bash
 # Manual scale (StatefulSet)
+# Each replica needs its own L4; with the default 1-node GPU pool a 2nd replica stays Pending.
 kubectl scale statefulset my-nim-nim-llm --replicas=2 -n nim
 
 # GPU node pool resize
