@@ -1,6 +1,8 @@
 # Scripts Reference
 
-Operational scripts for NIM-GKE deployment and management.
+Operational scripts for NIM-GKE deployment and management. Every script
+sources `config.env` for settings (`PROJECT_ID` required, no default; every
+other value has a default and can be overridden by exporting it first).
 
 ---
 
@@ -8,17 +10,18 @@ Operational scripts for NIM-GKE deployment and management.
 
 ### `deploy_nim_gke.sh`
 
-**Purpose**: Main deployment script. Creates GKE cluster, GPU node pool, and NIM deployment.
+**Purpose**: Main deployment script. Creates GKE cluster, GPU node pool, and NIM deployment. This is the measured path (see `docs/runs/2026-09-27-measured-run.md`).
 
-**Prerequisites**: NGC API key set, gcloud authenticated, GPU quota approved.
+**Prerequisites**: `NGC_API_KEY` set, gcloud authenticated, GPU quota approved. Run `preflight.sh` first.
 
 **Usage**:
 ```bash
-export NGC_CLI_API_KEY='your-key'
+export NGC_API_KEY='your-key'   # NGC_CLI_API_KEY accepted as a fallback
+export PROJECT_ID='your-gcp-project'
 ./scripts/deploy_nim_gke.sh
 ```
 
-**Duration**: 25-35 minutes.
+**Duration**: measured 20 m 19 s, script start to pod Ready (docs/runs/2026-09-27-measured-run.md).
 
 **What it does**:
 1. Validates tools (gcloud, kubectl, helm)
@@ -35,20 +38,17 @@ export NGC_CLI_API_KEY='your-key'
 
 ### `deploy_nim_production.sh`
 
-**Purpose**: Production-grade deployment with autoscaling, monitoring, and hardened configuration.
+**Purpose**: Alternate deployment with an autoscaling GPU node pool (0-2 nodes) and a system pool with a minimum of 1 node. **Not measured** — no timing or cost numbers exist for this path.
 
-**Differences from standard deploy**:
-- Autoscaling enabled (0-2 nodes)
+**Differences from `deploy_nim_gke.sh`**:
+- GPU node pool autoscales 0-2 nodes; `deploy_nim_gke.sh` uses a fixed node count
 - Resource limits enforced
 - Health checks tuned for production
-- Comprehensive error handling
 
 **Usage**:
 ```bash
 ./scripts/deploy_nim_production.sh
 ```
-
-**Recommended for**: Staging, production environments.
 
 ---
 
@@ -68,37 +68,38 @@ export NGC_CLI_API_KEY='your-key'
 
 ## Validation Scripts
 
+### `preflight.sh`
+
+**Purpose**: Six read-only checks before deploying: NGC key present, gcloud auth, image tag reachable, chart fetch, L4 quota, no existing cluster of the target name.
+
+**Usage**:
+```bash
+./scripts/preflight.sh
+```
+
+**Recommendation**: Run before `deploy_nim_gke.sh`. This is the first step of the measured run order.
+
+---
+
 ### `setup_environment.sh`
 
-**Purpose**: Prerequisite validation and environment setup.
+**Purpose**: Broader prerequisite validation and environment setup (tools, APIs, quotas, NGC key, network connectivity).
 
 **Usage**:
 ```bash
 ./scripts/setup_environment.sh
 ```
 
-**Checks**:
-- Tool installation (gcloud, kubectl, helm)
-- GCP authentication
-- Required APIs enabled
-- GPU quotas
-- NGC API key validity
-- Network connectivity
-
-**Recommendation**: Run before first deployment.
-
 ---
 
 ### `gke_nim_prereqs.sh`
 
-**Purpose**: Lightweight prerequisite check (subset of setup_environment.sh).
+**Purpose**: Lightweight prerequisite check (subset of `setup_environment.sh`).
 
 **Usage**:
 ```bash
 ./scripts/gke_nim_prereqs.sh
 ```
-
-**Use case**: Quick validation before deployment.
 
 ---
 
@@ -141,9 +142,20 @@ export NGC_CLI_API_KEY='your-key'
 ./scripts/test_nim_production.sh
 ```
 
-**Duration**: ~5 minutes.
-
 **Output**: Test report with pass/fail status, performance metrics.
+
+---
+
+### `bench.py`
+
+**Purpose**: Benchmark script used for the measured run (`docs/runs/2026-09-27-measured-run.md`): 20 requests at temperature 0, 5 of them streamed to measure time to first token, concurrency 1.
+
+**Prerequisites**: Port-forward active.
+
+**Usage**:
+```bash
+python3 scripts/bench.py
+```
 
 ---
 
@@ -180,14 +192,13 @@ export NGC_CLI_API_KEY='your-key'
 ./scripts/cleanup.sh
 ```
 
-**Deletes**:
-- GKE cluster (includes all node pools)
-- Persistent volumes
-- Load balancers (if created)
+**Order of operations**:
+1. Uninstalls the Helm release
+2. Deletes the PVC
+3. Deletes the GKE cluster (all node pools)
+4. Lists any leftover disks in the project, for manual review
 
 **Warning**: Irreversible. Model cache lost.
-
-**Cost after cleanup**: $0/hour.
 
 ---
 
@@ -237,26 +248,23 @@ All scripts use `set -euo pipefail`:
 
 ### Idempotency
 
-Scripts check resource existence before creating:
-```bash
-if gcloud container clusters describe $CLUSTER_NAME &>/dev/null; then
-  echo "Cluster exists, skipping creation"
-else
-  gcloud container clusters create $CLUSTER_NAME
-fi
-```
+Only the Helm install step is idempotent: `deploy_nim_gke.sh` runs
+`helm upgrade --install`, safe to re-run against an existing release.
+Cluster and node-pool creation are not idempotent; re-running against an
+existing cluster of the same name fails.
 
 ### Configuration Variables
 
-Top of each script:
+All scripts source `config.env`:
 ```bash
-export PROJECT_ID="your-gcp-project"
-export REGION="us-central1"
-export ZONE="us-central1-a"
-export CLUSTER_NAME="nim-demo"
+source "$(dirname "${BASH_SOURCE[0]}")/config.env"
 ```
 
-**Customize**: Edit these before running.
+`PROJECT_ID` has no default; scripts stop if it is unset. Every other
+variable (`REGION`, `ZONE`, `CLUSTER_NAME`, `GPU_TYPE`,
+`NODE_POOL_MACHINE_TYPE`, `CLUSTER_MACHINE_TYPE`, `NIM_CHART_VERSION`,
+`NIM_RELEASE_NAME`, `NIM_NAMESPACE`) has a default in `config.env`.
+Override any value by exporting it before running a script.
 
 ### Logging
 
@@ -270,12 +278,13 @@ Consistent format:
 
 ## Execution Order
 
-**First-time deployment**:
+**Measured path (first-time deployment)**:
 ```bash
-1. ./scripts/setup_environment.sh
+1. ./scripts/preflight.sh
 2. ./scripts/deploy_nim_gke.sh
-3. kubectl port-forward service/my-nim-nim-llm 8000:8000 -n nim &
-4. ./scripts/test_nim.sh
+3. kubectl port-forward -n nim svc/my-nim-nim-llm 8000:8000 &
+4. ./scripts/test_nim.sh          # or: python3 scripts/bench.py
+5. ./scripts/cleanup.sh
 ```
 
 **Redeployment** (after cleanup):
@@ -299,7 +308,7 @@ Consistent format:
 
 If scripts fail, check:
 
-1. **NGC API key**: `echo $NGC_CLI_API_KEY`
+1. **NGC API key**: `echo $NGC_API_KEY`
 2. **gcloud auth**: `gcloud auth list`
 3. **GCP project**: `gcloud config get-value project`
 4. **GPU quota**: `gcloud compute regions describe us-central1 | grep L4`
@@ -315,11 +324,13 @@ If scripts fail, check:
 
 | Script | Requires |
 |--------|----------|
+| `preflight.sh` | gcloud, NGC key |
 | `deploy_nim_gke.sh` | gcloud, kubectl, helm, NGC key |
 | `deploy_nim_production.sh` | Same as above |
 | `deploy_nim_only.sh` | Existing cluster |
 | `setup_environment.sh` | gcloud |
 | `test_nim.sh` | Port-forward active |
+| `bench.py` | Port-forward active |
 | `test_nim_production.sh` | Port-forward active |
 | `monitor_deployment.sh` | kubectl configured |
 | `cleanup.sh` | gcloud |
@@ -336,5 +347,5 @@ If scripts fail, check:
 
 ---
 
-**Last updated**: October 2025
+**Measured run**: 2026-09-27 (`docs/runs/2026-09-27-measured-run.md`)
 

@@ -6,9 +6,17 @@
 
 set -euo pipefail
 
-readonly NIM_NAMESPACE="nim"
-readonly NIM_SERVICE="my-nim-nim-llm"
+source "$(dirname "${BASH_SOURCE[0]}")/config.env"
+
+readonly NIM_SERVICE="${NIM_RELEASE_NAME}-nim-llm"
 readonly TEST_PORT="8000"
+
+SKIP_PROMPT=false
+for arg in "$@"; do
+  if [[ "$arg" == "--yes" ]]; then
+    SKIP_PROMPT=true
+  fi
+done
 
 # --- [1] HEALTH CHECK ---
 health_check() {
@@ -21,7 +29,9 @@ health_check() {
         echo "Please run this in a separate terminal:"
         echo "   kubectl port-forward service/$NIM_SERVICE $TEST_PORT:8000 -n $NIM_NAMESPACE"
         echo ""
-        read -p "Press Enter once port-forward is running..."
+        if [[ -t 0 ]] && [[ "${SKIP_PROMPT}" != "true" ]]; then
+            read -p "Press Enter once port-forward is running..."
+        fi
     fi
     
     # Test health endpoint
@@ -231,7 +241,8 @@ resource_monitoring() {
 generate_report() {
     echo "📋 Generating test report..."
     
-    local report_file="nim_test_report_$(date +%Y%m%d_%H%M%S).txt"
+    local report_file
+    report_file="nim_test_report_$(date +%Y%m%d_%H%M%S).txt"
     
     {
         echo "NVIDIA NIM Test Report"
@@ -277,7 +288,7 @@ main() {
     echo "📌 Next steps:"
     echo "   • Monitor with: kubectl get pods -n $NIM_NAMESPACE -w"
     echo "   • View logs: kubectl logs -f -n $NIM_NAMESPACE \$(kubectl get pods -n $NIM_NAMESPACE -o jsonpath='{.items[0].metadata.name}')"
-    echo "   • Scale if needed: kubectl scale deployment $NIM_SERVICE --replicas=2 -n $NIM_NAMESPACE"
+    echo "   • Scale if needed: kubectl scale statefulset $NIM_SERVICE --replicas=2 -n $NIM_NAMESPACE"
     echo "   • Cleanup when done: ./cleanup.sh"
     echo ""
 }

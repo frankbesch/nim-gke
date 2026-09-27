@@ -18,12 +18,17 @@ jobs:
       
       - name: Lint deployment scripts
         run: |
-          find scripts/ -name "*.sh" -exec shellcheck -x {} \;
-      
+          find scripts/ -name "*.sh" -print0 | xargs -0 shellcheck -x -S warning
+          shellcheck -x -S warning --shell=bash scripts/config.env
+
       - name: Check script permissions
         run: |
-          find scripts/ -name "*.sh" -exec test -x {} \; || \
-          (echo "Error: Some scripts are not executable" && exit 1)
+          find scripts/ -name "*.sh" ! -exec test -x {} \; -print > /tmp/non_exec.txt
+          if [ -s /tmp/non_exec.txt ]; then
+            echo "Error: Some scripts are not executable:"
+            cat /tmp/non_exec.txt
+            exit 1
+          fi
 
   validate-yaml:
     name: Validate YAML
@@ -48,15 +53,18 @@ jobs:
       - name: Check for broken links
         run: |
           npm install -g markdown-link-check
-          find docs/ -name "*.md" -exec markdown-link-check {} \;
-      
+          find docs/ -name "*.md" -print0 | xargs -0 -n1 markdown-link-check
+
       - name: Verify required docs exist
         run: |
           required_docs=(
             "README.md"
+            "docs/QUICKSTART.md"
             "docs/ARCHITECTURE.md"
-            "docs/INTERVIEW_BRIEF.md"
+            "docs/PRODUCTION_GUIDE.md"
+            "docs/GPU_QUOTA_GUIDE.md"
             "runbooks/troubleshooting.md"
+            "docs/runs/2026-09-27-measured-run.md"
           )
           for doc in "${required_docs[@]}"; do
             if [ ! -f "$doc" ]; then
@@ -71,13 +79,36 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       
-      - name: Check for hardcoded secrets
+      - name: Check for hardcoded NGC keys
         run: |
-          if grep -r "NGC_CLI_API_KEY.*=" scripts/ --exclude="*.template"; then
-            echo "Error: Found hardcoded NGC API keys"
+          # Fail only on a literal key value assigned to NGC_API_KEY /
+          # NGC_CLI_API_KEY: not a $-expansion, and not an obvious placeholder.
+          # grep exits 0 on a hit, 1 on no hit, 2 on error; treat 2 as a failure too.
+          rc=0
+          grep -rnP --exclude="*.template" --exclude-dir=.git \
+              '(NGC_(CLI_)?API_KEY)\s*=\s*[\\"'"'"']*(?!\$)(?!your-key)(?!your_key)(?!<)(?!\.\.\.)(?!nvapi-x)[^"'"'"'\\\s]+' \
+              scripts/ docs/ runbooks/ CONTRIBUTING.md || rc=$?
+          if [ "$rc" -eq 0 ]; then
+            echo "Error: Found a literal NGC key value assigned in source"
+            exit 1
+          elif [ "$rc" -gt 1 ]; then
+            echo "Error: secret scan failed to run (grep rc=$rc)"
             exit 1
           fi
-      
+
+          # Scan for NGC key-shaped strings anywhere (e.g. nvapi-XXXXXXXXXX...),
+          # excluding the documented placeholder pattern (nvapi-x...x).
+          rc=0
+          grep -rnP --exclude="*.template" --exclude-dir=.git \
+              'nvapi-(?!x{15,})[A-Za-z0-9_-]{20,}' scripts/ docs/ runbooks/ CONTRIBUTING.md || rc=$?
+          if [ "$rc" -eq 0 ]; then
+            echo "Error: Found an NGC key-shaped string"
+            exit 1
+          elif [ "$rc" -gt 1 ]; then
+            echo "Error: key-shape scan failed to run (grep rc=$rc)"
+            exit 1
+          fi
+
       - name: Scan for sensitive patterns
         run: |
           patterns=("password" "secret" "key" "token")

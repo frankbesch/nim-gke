@@ -54,10 +54,10 @@ In the **Filter** box at the top, enter one of:
 
 | Action | Duration | Status |
 |--------|----------|--------|
-| Submit quota request | 5 minutes | ⏸️ Pending |
-| Google approval | 1-24 hours | ⏸️ Waiting |
-| Add GPU node pool | 10 minutes | ⏸️ After approval |
-| Deploy NIM | 20 minutes | ⏸️ After GPU nodes |
+| Submit quota request | not measured | ⏸️ Pending |
+| Google approval | varies (not measured) | ⏸️ Waiting |
+| Add GPU node pool | 1 m 02 s (measured run) | ⏸️ After approval |
+| Deploy NIM | 20 m 19 s script start to Ready (measured run) | ⏸️ After GPU nodes |
 
 ---
 
@@ -77,7 +77,7 @@ export PATH="/opt/homebrew/share/google-cloud-sdk/bin:$PATH"
 Then deploy NIM:
 
 ```bash
-export NGC_CLI_API_KEY='your-key-here'
+export NGC_API_KEY='your-key-here'
 ./deploy_nim_only.sh
 ```
 
@@ -90,7 +90,7 @@ Delete everything and redeploy:
 gcloud container clusters delete nim-demo --zone=us-central1-a
 
 # Redeploy everything
-export NGC_CLI_API_KEY='your-key-here'
+export NGC_API_KEY='your-key-here'
 ./deploy_nim_gke.sh
 ```
 
@@ -125,18 +125,9 @@ gcloud compute accelerator-types list --filter="zone:us-central1"
 
 ## 💰 Current Costs
 
-| Resource | Status | Cost/Hour |
-|----------|--------|-----------|
-| Control plane (e2-standard-4) | ✅ Running | $0.13 |
-| GPU node pool | ❌ Not created | $0.00 |
-| **Total** | | **$0.13/hour** |
-
-### After GPU approval:
-| Resource | Cost/Hour |
-|----------|-----------|
-| Control plane | $0.13 |
-| GPU node + L4 GPU | $1.50 |
-| **Total** | **$1.63/hour** |
+See the single cost table in [README cost table](../README.md#cost-and-performance) and the
+measured run's cost breakdown in
+[docs/runs/2026-09-27-measured-run.md](runs/2026-09-27-measured-run.md).
 
 ---
 
@@ -145,13 +136,14 @@ gcloud compute accelerator-types list --filter="zone:us-central1"
 ### Keep Cluster (wait for approval)
 ```bash
 # No action needed
-# Costs: ~$0.13/hour while waiting
+# Costs the control-plane/zonal fee only, no GPU node yet (unverified estimate,
+# not in the measured receipt; see ../README.md#cost-and-performance)
 ```
 
 ### Delete Everything (stop charges)
 ```bash
 gcloud container clusters delete nim-demo --zone=us-central1-a
-# Costs: $0/hour
+# Stops all charges for this cluster
 # You'll need to recreate cluster after approval
 ```
 
@@ -160,7 +152,7 @@ gcloud container clusters delete nim-demo --zone=us-central1-a
 ## 🎯 Recommended Next Steps
 
 1. **Request GPU quota now** (link above)
-2. **Keep the cluster running** (~$3/day while waiting)
+2. **Keep the cluster running** (unverified estimate, control-plane fee only; see ../README.md#cost-and-performance)
 3. **Check email** for approval notification
 4. **Run `./add_gpu_nodepool.sh`** when approved
 5. **Run `./deploy_nim_only.sh`** to complete deployment
@@ -190,7 +182,7 @@ gcloud container clusters delete nim-demo --zone=us-central1-a
 
 ## 📞 Support Links
 
-- **GCP Quotas:** https://console.cloud.google.com/iam-admin/quotas?project=nim-on-gke
+- **GCP Quotas:** https://console.cloud.google.com/iam-admin/quotas?project=YOUR_PROJECT_ID
 - **GCP Support:** https://cloud.google.com/support
 - **GPU Documentation:** https://cloud.google.com/compute/docs/gpus
 - **NVIDIA NIM Docs:** https://docs.nvidia.com/nim/

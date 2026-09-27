@@ -5,7 +5,15 @@
 # Quick environment and repository validation
 # ============================================
 
-set -e
+set -euo pipefail
+
+SCRIPT_DIR="$(dirname "${BASH_SOURCE[0]}")"
+if [ -f "${SCRIPT_DIR}/config.env" ]; then
+  source "${SCRIPT_DIR}/config.env"
+else
+  echo "❌ ${SCRIPT_DIR}/config.env MISSING; cannot continue" >&2
+  exit 1
+fi
 
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "🔍 NIM-GKE Setup Verification"
@@ -44,14 +52,24 @@ for script in "${REQUIRED_SCRIPTS[@]}"; do
   if [ -f "$script" ] && [ -x "$script" ]; then
     echo "  ✅ $script"
   elif [ -f "$script" ]; then
-    echo "  ⚠️  $script (not executable)"
-    chmod +x "$script"
-    echo "     Fixed: made executable"
+    echo "  ⚠️  $script (not executable; mark it executable before running)"
   else
     echo "  ❌ $script MISSING"
     EXIT_CODE=1
   fi
 done
+echo ""
+
+# --- Configuration Sourcing ---
+echo "🧩 Shared Config"
+echo "────────────────────────────────────────────────────────────"
+
+if [ -f "scripts/config.env" ]; then
+  echo "  ✅ scripts/config.env"
+else
+  echo "  ❌ scripts/config.env MISSING"
+  EXIT_CODE=1
+fi
 echo ""
 
 # --- Documentation ---
@@ -60,12 +78,12 @@ echo "────────────────────────�
 
 REQUIRED_DOCS=(
   "README.md"
+  "docs/QUICKSTART.md"
   "docs/ARCHITECTURE.md"
-  "docs/INTERVIEW_BRIEF.md"
+  "docs/PRODUCTION_GUIDE.md"
+  "docs/GPU_QUOTA_GUIDE.md"
   "runbooks/troubleshooting.md"
-  "scripts/README.md"
-  "SESSION_STATE.md"
-  "QUICK_REFERENCE.md"
+  "docs/runs/2026-09-27-measured-run.md"
 )
 
 for doc in "${REQUIRED_DOCS[@]}"; do
@@ -90,10 +108,10 @@ else
   EXIT_CODE=1
 fi
 
-if [ -f "charts/nim-llm-1.3.0.tgz" ]; then
-  echo "  ✅ charts/nim-llm-1.3.0.tgz"
+if [ -f "charts/nim-llm-${NIM_CHART_VERSION}.tgz" ]; then
+  echo "  ✅ charts/nim-llm-${NIM_CHART_VERSION}.tgz"
 else
-  echo "  ⚠️  charts/nim-llm-1.3.0.tgz MISSING (will download on deploy)"
+  echo "  ⚠️  charts/nim-llm-${NIM_CHART_VERSION}.tgz MISSING (will download on deploy)"
 fi
 
 if [ -f ".gitignore" ]; then
@@ -137,18 +155,18 @@ echo ""
 echo "🔑 Environment Variables"
 echo "────────────────────────────────────────────────────────────"
 
-if [ -n "${NGC_CLI_API_KEY}" ]; then
-  key_len=${#NGC_CLI_API_KEY}
-  echo "  ✅ NGC_CLI_API_KEY set ($key_len chars)"
+if [ -n "${NGC_API_KEY}" ]; then
+  key_len=${#NGC_API_KEY}
+  echo "  ✅ NGC_API_KEY set ($key_len chars)"
 else
-  echo "  ⚠️  NGC_CLI_API_KEY not set"
+  echo "  ⚠️  NGC_API_KEY not set"
   echo "     Run: source ./set_ngc_key.sh"
 fi
 
 if [ -n "${PROJECT_ID}" ]; then
   echo "  ✅ PROJECT_ID: $PROJECT_ID"
 else
-  echo "  ⚠️  PROJECT_ID not set (will use default: your-gcp-project)"
+  echo "  ⚠️  PROJECT_ID not set"
 fi
 echo ""
 
@@ -159,24 +177,23 @@ echo "────────────────────────�
 if gcloud auth list --filter=status:ACTIVE --format="value(account)" &> /dev/null; then
   account=$(gcloud auth list --filter=status:ACTIVE --format="value(account)" 2>/dev/null | head -1)
   echo "  ✅ Authenticated: $account"
-  
-  project=$(gcloud config get-value project 2>/dev/null)
-  echo "  ✅ Project: $project"
-  
-  # Check for cluster
-  if gcloud container clusters describe nim-demo --zone=us-central1-a &> /dev/null 2>&1; then
-    echo "  🟢 Cluster 'nim-demo' exists (RUNNING)"
-    
-    # Check for NIM pod
-    if kubectl get pod my-nim-nim-llm-0 -n nim &> /dev/null 2>&1; then
-      status=$(kubectl get pod my-nim-nim-llm-0 -n nim -o jsonpath='{.status.phase}')
-      ready=$(kubectl get pod my-nim-nim-llm-0 -n nim -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}')
-      echo "  🟢 NIM pod exists (Status: $status, Ready: $ready)"
+
+  if [ -n "${PROJECT_ID}" ]; then
+    if gcloud container clusters describe "${CLUSTER_NAME}" --zone="${ZONE}" --project="${PROJECT_ID}" &> /dev/null; then
+      echo "  🟢 Cluster '${CLUSTER_NAME}' exists (RUNNING)"
+
+      if kubectl get pod "${NIM_RELEASE_NAME}-nim-llm-0" -n "${NIM_NAMESPACE}" &> /dev/null; then
+        status=$(kubectl get pod "${NIM_RELEASE_NAME}-nim-llm-0" -n "${NIM_NAMESPACE}" -o jsonpath='{.status.phase}' 2>/dev/null || echo "unknown")
+        ready=$(kubectl get pod "${NIM_RELEASE_NAME}-nim-llm-0" -n "${NIM_NAMESPACE}" -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null || echo "unknown")
+        echo "  🟢 NIM pod exists (Status: $status, Ready: $ready)"
+      else
+        echo "  ⚠️  NIM pod not found"
+      fi
     else
-      echo "  ⚠️  NIM pod not found"
+      echo "  ⚪ Cluster '${CLUSTER_NAME}' not found (fresh start)"
     fi
   else
-    echo "  ⚪ Cluster 'nim-demo' not found (fresh start)"
+    echo "  ⚠️  PROJECT_ID not set; skipping cluster check"
   fi
 else
   echo "  ⚠️  Not authenticated"
@@ -201,4 +218,3 @@ fi
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
 exit $EXIT_CODE
-

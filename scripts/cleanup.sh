@@ -4,11 +4,11 @@
 # 🗑️  Cleanup NVIDIA NIM GKE Deployment
 # ============================================
 
-set -e
+set -euo pipefail
 
-export CLUSTER_NAME="nim-demo"
-export ZONE="us-central1-a"
-export PROJECT_ID="your-gcp-project"
+source "$(dirname "${BASH_SOURCE[0]}")/config.env"
+
+require_project_id
 
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "🗑️  NVIDIA NIM GKE Cleanup"
@@ -20,7 +20,7 @@ echo "   - GPU node pool: gpupool"
 echo "   - All associated resources"
 echo ""
 echo "💰 This will STOP all charges for:"
-echo "   - Compute instances (~$1.63/hour)"
+echo "   - Compute instances (about \$0.98/hour, measured, docs/runs/2026-09-27-measured-run.md)"
 echo "   - Load balancers"
 echo "   - Persistent storage"
 echo ""
@@ -33,46 +33,100 @@ if [[ "${CONFIRM}" != "yes" ]]; then
 fi
 
 echo ""
+echo "🔍 Checking project ${PROJECT_ID}..."
+if ! gcloud projects describe "${PROJECT_ID}" > /dev/null 2>&1; then
+  echo "❌ Project ${PROJECT_ID} is not accessible; nothing deleted." >&2
+  exit 1
+fi
+
 echo "🔍 Checking if cluster exists..."
 
-if ! gcloud container clusters describe ${CLUSTER_NAME} --zone=${ZONE} --project=${PROJECT_ID} &> /dev/null; then
-  echo "⚠️  Cluster ${CLUSTER_NAME} does not exist or already deleted"
-  exit 0
+describe_err="$(mktemp)"
+if ! gcloud container clusters describe "${CLUSTER_NAME}" --zone="${ZONE}" --project="${PROJECT_ID}" > /dev/null 2> "${describe_err}"; then
+  if grep -qi "not found\|NOT_FOUND" "${describe_err}"; then
+    echo "⚠️  Cluster ${CLUSTER_NAME} not found in ${PROJECT_ID}/${ZONE}; nothing deleted."
+    others="$(gcloud container clusters list --project="${PROJECT_ID}" --filter="name=${CLUSTER_NAME}" --format="value(name,location)" 2> /dev/null || true)"
+    if [[ -n "${others}" ]]; then
+      echo "❗ A cluster named ${CLUSTER_NAME} exists in another location and is still billing:" >&2
+      echo "${others}" >&2
+      echo "   Re-run with ZONE set to that location." >&2
+      rm -f "${describe_err}"
+      exit 1
+    fi
+    rm -f "${describe_err}"
+    exit 0
+  else
+    echo "❌ Failed to check cluster status:"
+    cat "${describe_err}" >&2
+    rm -f "${describe_err}"
+    exit 1
+  fi
 fi
+rm -f "${describe_err}"
 
 echo "✅ Cluster found"
 echo ""
 
-# Optional: Save cluster info before deletion
-echo "💾 Saving cluster information..."
-kubectl get all -n nim > nim_resources_backup.yaml 2>/dev/null || true
-kubectl get configmaps -n nim -o yaml > nim_configmaps_backup.yaml 2>/dev/null || true
+# --- Get credentials so kubectl/helm target this cluster ---
+echo "🔑 Getting cluster credentials..."
+gcloud container clusters get-credentials "${CLUSTER_NAME}" --zone="${ZONE}" --project="${PROJECT_ID}"
+
+# --- Uninstall the release and delete PVCs before tearing down the cluster ---
+echo ""
+echo "🧹 Uninstalling helm release (if present)..."
+helm uninstall "${NIM_RELEASE_NAME}" -n "${NIM_NAMESPACE}" || echo "  (no release to uninstall)"
+
+echo "🧹 Deleting PVCs (if present)..."
+kubectl delete pvc --all -n "${NIM_NAMESPACE}" || echo "  (no PVCs to delete)"
+
+echo "⏳ Waiting briefly for PVs to release..."
+sleep 10
+
+# --- Confirm current context is this cluster before dumping resources ---
+current_context="$(kubectl config current-context 2>/dev/null || true)"
+if [[ "${current_context}" == *"${CLUSTER_NAME}"* ]]; then
+  echo "💾 Saving cluster information..."
+  kubectl get all -n "${NIM_NAMESPACE}" > nim_resources_backup.yaml 2>/dev/null || true
+  kubectl get configmaps -n "${NIM_NAMESPACE}" -o yaml > nim_configmaps_backup.yaml 2>/dev/null || true
+else
+  echo "⚠️  kubectl context (${current_context}) does not match cluster ${CLUSTER_NAME}; skipping resource dump"
+fi
 
 echo ""
 echo "🗑️  Deleting GKE cluster: ${CLUSTER_NAME}"
 echo "   This may take 5-10 minutes..."
 echo ""
 
-gcloud container clusters delete ${CLUSTER_NAME} \
-  --zone=${ZONE} \
-  --project=${PROJECT_ID} \
+gcloud container clusters delete "${CLUSTER_NAME}" \
+  --zone="${ZONE}" \
+  --project="${PROJECT_ID}" \
   --quiet
 
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "✅ Cleanup Complete!"
+echo "✅ Cluster delete request complete"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
-echo "📋 Resources deleted:"
-echo "   ✅ GKE cluster: ${CLUSTER_NAME}"
-echo "   ✅ GPU node pool: gpupool"
-echo "   ✅ All pods and services"
+
+# --- Check for leftover disks; do not auto-delete ---
+echo "🔍 Checking for leftover persistent disks in ${ZONE}..."
+leftover_disks="$(gcloud compute disks list --project="${PROJECT_ID}" --filter="zone:(${ZONE})" --format="value(name)" || true)"
+if [[ -n "${leftover_disks}" ]]; then
+  suspect_disks="$(echo "${leftover_disks}" | grep -i -- "${CLUSTER_NAME}\|pvc-" || true)"
+  if [[ -n "${suspect_disks}" ]]; then
+    echo "⚠️  WARNING: possible leftover disks related to this cluster (not deleted automatically):"
+    echo "${suspect_disks}"
+  else
+    echo "✅ No disks matching cluster name or 'pvc-' found"
+  fi
+else
+  echo "✅ No disks found in ${ZONE}"
+fi
+
 echo ""
 echo "💾 Backup files created (if resources existed):"
 echo "   - nim_resources_backup.yaml"
 echo "   - nim_configmaps_backup.yaml"
-echo ""
-echo "💰 Cost impact: Cluster charges have stopped"
 echo ""
 echo "🔄 To redeploy, run: ./deploy_nim_gke.sh"
 echo ""
@@ -87,5 +141,8 @@ if [[ "${CLEAN_LOCAL}" == "yes" ]]; then
 fi
 
 echo ""
-echo "🎉 Done! Your GCP project is now clean."
-
+if [[ -n "${leftover_disks}" && -n "${suspect_disks:-}" ]]; then
+  echo "⚠️  Cluster deleted, but leftover disks were found above. Review and delete manually if unneeded."
+else
+  echo "✅ Cluster deleted. No suspect leftover disks found."
+fi

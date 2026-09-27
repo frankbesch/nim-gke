@@ -106,16 +106,12 @@ kubectl describe pod my-nim-nim-llm-0 -n nim | grep -A 5 "Failed"
 
 **Resolution**:
 ```bash
-# Verify key is set
-echo $NGC_CLI_API_KEY | head -c 20
+# Verify key is set (never print it)
+[[ -n "${NGC_API_KEY:-}" ]] && echo "NGC_API_KEY is set"
 
-# Recreate registry secret
-kubectl delete secret registry-secret -n nim
-kubectl create secret docker-registry registry-secret \
-  --docker-server=nvcr.io \
-  --docker-username='$oauthtoken' \
-  --docker-password=$NGC_CLI_API_KEY \
-  -n nim
+# Recreate registry-secret and ngc-api
+PROJECT_ID="${PROJECT_ID:-x}" source scripts/config.env   # run from the repo root
+ngc_apply_secrets nim   # recreates registry-secret and ngc-api; key stays off the command line
 
 # Delete pod to retry
 kubectl delete pod my-nim-nim-llm-0 -n nim
@@ -125,18 +121,17 @@ kubectl delete pod my-nim-nim-llm-0 -n nim
 
 **Event message**: `couldn't find key NGC_API_KEY in Secret`
 
-**Root cause**: Secret created with wrong key name.
+**Root cause**: The nim-llm Helm chart's contract requires the secret key
+`NGC_API_KEY` (NVIDIA's Kubernetes deployment guide, docs.nvidia.com/nim).
+Note: an earlier setup in this repo used `NGC_CLI_API_KEY` as the secret key
+and pods failed to start until it was renamed to `NGC_API_KEY` — that was a
+real past failure, kept here for reference.
 
 **Resolution**:
 ```bash
-# Delete incorrect secret
-kubectl delete secret ngc-api -n nim
-
-# Create with both key names (compatibility)
-kubectl create secret generic ngc-api \
-  --from-literal=NGC_API_KEY=$NGC_CLI_API_KEY \
-  --from-literal=NGC_CLI_API_KEY=$NGC_CLI_API_KEY \
-  -n nim
+# Recreate ngc-api with the required key name (also refreshes registry-secret)
+PROJECT_ID="${PROJECT_ID:-x}" source scripts/config.env   # run from the repo root
+ngc_apply_secrets nim   # recreates registry-secret and ngc-api; key stays off the command line
 
 # Restart pod
 kubectl delete pod my-nim-nim-llm-0 -n nim
@@ -199,7 +194,7 @@ kubectl get events -n nim --sort-by='.lastTimestamp' | tail -20
 
 **Log message**: `Preparing model workspace. This step might download additional files`
 
-**Expected behavior**: 10-15 minutes for initial download (16GB model).
+**Expected behavior**: the measured run took 8 m 39 s from container start to Ready ([receipt](../docs/runs/2026-09-27-measured-run.md)).
 
 **No action required**: Wait for download to complete.
 
@@ -314,7 +309,7 @@ env:
 **Diagnosis**:
 ```bash
 # Check autoscaler logs
-kubectl logs -n kube-system deployment/cluster-autoscaler
+kubectl logs -n kube-system deploy/cluster-autoscaler
 
 # Check node pool config
 gcloud container node-pools describe gpupool \

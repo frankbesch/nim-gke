@@ -8,18 +8,22 @@
 # Visit: https://org.ngc.nvidia.com/setup/api-key
 # Sign up/Login → Generate API Key → Copy it
 
-export NGC_CLI_API_KEY='nvapi-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
+export NGC_API_KEY='nvapi-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
+export PROJECT_ID='your-gcp-project'
 ```
 
-### 2️⃣ Validate Prerequisites (2 minutes)
+`NGC_CLI_API_KEY` is accepted as a fallback if `NGC_API_KEY` is unset.
+
+### 2️⃣ Validate Prerequisites (read-only checks)
 
 ```bash
-./gke_nim_prereqs.sh
+./preflight.sh
 ```
 
-**Expected output**: All ✅ checks pass
+Six checks: NGC key, gcloud auth, image tag, chart fetch, L4 quota, no
+existing cluster.
 
-### 3️⃣ Deploy NIM (25-30 minutes)
+### 3️⃣ Deploy NIM (measured: 20 m 19 s)
 
 ```bash
 ./deploy_nim_gke.sh
@@ -124,7 +128,7 @@ kubectl describe pod -n nim $(kubectl get pods -n nim -o jsonpath='{.items[0].me
 
 **Fix**: Verify NGC API key
 ```bash
-echo $NGC_CLI_API_KEY
+echo $NGC_API_KEY
 kubectl delete secret registry-secret -n nim
 kubectl delete secret ngc-api -n nim
 # Re-run deploy script
@@ -132,7 +136,7 @@ kubectl delete secret ngc-api -n nim
 
 ### Issue: Model Loading Slow
 
-**Normal**: First-time model download takes 10-20 minutes (16GB model)
+**Normal**: measured model download and load to Ready took 8 m 39 s in the [run receipt](runs/2026-09-27-measured-run.md)
 
 **Monitor**:
 ```bash
@@ -143,7 +147,8 @@ kubectl logs -f -n nim $(kubectl get pods -n nim -o jsonpath='{.items[0].metadat
 
 ## 💰 Cost Control
 
-**Hourly rate**: ~$1.63/hour (~$1,200/month)
+See the [cost and performance table](../README.md#cost-and-performance) for
+measured figures: ~$0.98/hour while up, $0.43 for one full run.
 
 **Save money**:
 ```bash
@@ -160,7 +165,7 @@ gcloud container clusters resize nim-demo --num-nodes=0 --zone=us-central1-a --n
 
 | Command | Purpose |
 |---------|---------|
-| `./gke_nim_prereqs.sh` | Validate environment |
+| `./preflight.sh` | Validate environment (read-only) |
 | `./deploy_nim_gke.sh` | Deploy NIM to GKE |
 | `./test_nim.sh` | Test deployment |
 | `./cleanup.sh` | Delete everything |
@@ -173,7 +178,7 @@ gcloud container clusters resize nim-demo --num-nodes=0 --zone=us-central1-a --n
 
 - **Model**: Meta Llama 3 8B Instruct
 - **Optimization**: NVIDIA TensorRT
-- **GPU**: NVIDIA L4 (16GB)
+- **GPU**: NVIDIA L4 (24 GB)
 - **API**: OpenAI-compatible REST API
 - **Scale**: Kubernetes autoscaling ready
 
@@ -181,12 +186,12 @@ gcloud container clusters resize nim-demo --num-nodes=0 --zone=us-central1-a --n
 
 ## 📚 Learn More
 
-- [Full README](README.md)
+- [Full README](../README.md)
 - [NVIDIA NIM Docs](https://docs.nvidia.com/nim/)
 - [GKE GPU Guide](https://cloud.google.com/kubernetes-engine/docs/how-to/gpus)
 - [Original Tutorial](https://codelabs.developers.google.com/codelabs/nvidia-nim-google-cloud)
 
 ---
 
-**Need help?** Check the [README](README.md) troubleshooting section or [open an issue](../../issues).
+**Need help?** Check the [README](../README.md) troubleshooting section or [open an issue](https://github.com/frankbesch/nim-gke/issues).
 

@@ -3,7 +3,7 @@
 # ============================================
 # 🔑 Set NGC API Key - TEMPLATE FILE
 # ============================================
-# 
+#
 # INSTRUCTIONS:
 # 1. Copy this file: cp set_ngc_key.sh.template set_ngc_key.sh
 # 2. Edit set_ngc_key.sh and replace YOUR_NGC_API_KEY_HERE with your actual key
@@ -12,21 +12,19 @@
 # Get your NGC API key from: https://org.ngc.nvidia.com/setup/api-key
 #
 
-export NGC_CLI_API_KEY="YOUR_NGC_API_KEY_HERE"
+export NGC_API_KEY="YOUR_NGC_API_KEY_HERE"
 
-echo "✅ NGC_CLI_API_KEY has been set"
+echo "✅ NGC_API_KEY has been set"
 echo ""
 echo "🔍 Verifying key is set..."
-if [[ -n "${NGC_CLI_API_KEY}" ]]; then
-  echo "✅ Key length: ${#NGC_CLI_API_KEY} characters"
-  echo "✅ Key prefix: ${NGC_CLI_API_KEY:0:20}..."
+if [[ -n "${NGC_API_KEY}" ]]; then
+  echo "✅ Key length: ${#NGC_API_KEY} characters"
   echo ""
   echo "🎯 You're ready to proceed!"
   echo ""
   echo "Next step: Run the prerequisite checker"
   echo "   ./gke_nim_prereqs.sh"
 else
-  echo "❌ NGC_CLI_API_KEY is not set"
+  echo "❌ NGC_API_KEY is not set"
   exit 1
 fi
-

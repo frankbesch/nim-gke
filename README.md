@@ -1,8 +1,11 @@
 # nim-gke
 
-**GPU-accelerated NVIDIA NIM inference on Google Kubernetes Engine**
+**NVIDIA NIM inference on Google Kubernetes Engine, on a single L4 GPU**
 
-Production-grade reference implementation for deploying NVIDIA NIM microservices on GKE with L4 GPUs, autoscaling, and cost optimization.
+Reference implementation for deploying an NVIDIA NIM microservice on GKE.
+One full deploy/test/destroy cycle has been measured end to end; see the
+[run receipt](docs/runs/2026-09-27-measured-run.md) for every number in this
+file.
 
 **Based on**: [Google Codelabs - Deploy an AI model on GKE with NVIDIA NIM](https://codelabs.developers.google.com/codelabs/nvidia-nim-google-cloud)
 
@@ -10,59 +13,54 @@ Production-grade reference implementation for deploying NVIDIA NIM microservices
 
 ## What This Adds to the Tutorial
 
-This repository extends the [official Google Codelabs tutorial](https://codelabs.developers.google.com/codelabs/nvidia-nim-google-cloud) with production-grade enhancements:
+- `scripts/config.env`: one settings file every script sources. Only
+  `PROJECT_ID` and `NGC_API_KEY` must be set; everything else has a default
+  and can be overridden by exporting it first.
+- `scripts/preflight.sh`: six read-only checks before touching GCP (NGC key,
+  gcloud auth, image tag, chart fetch, L4 quota, no existing cluster).
+- `set -euo pipefail` in every script.
+- `scripts/bench.py`: the benchmark used for the measured run (20 requests
+  at temperature 0, 5 streamed for time-to-first-token, concurrency 1).
+- `scripts/cleanup.sh`: uninstalls the Helm release, deletes the PVC, deletes
+  the cluster, then lists any leftover disks in the project.
+- A troubleshooting runbook (`runbooks/troubleshooting.md`) and a quick
+  reference (`QUICK_REFERENCE.md`).
+- `scripts/deploy_nim_production.sh`: an alternate path with an autoscaling
+  GPU node pool (0-2 nodes) and a system pool with a minimum of 1 node. This
+  path has **not** been measured; treat its numbers as design targets, not
+  receipts.
 
-**Operational Excellence**:
-- Comprehensive error handling (`set -euo pipefail` in all scripts)
-- Idempotent operations (safe to run multiple times)
-- 60-minute deployment monitoring script
-- Troubleshooting runbook (465 lines, 6 failure modes)
-- Cost tracking and optimization strategies
-
-**Automation & Testing**:
-- Environment validation script (prerequisites, quotas, NGC key)
-- Integration test suite with load testing
-- CI/CD validation (shellcheck, yamllint, security scanning)
-- Automated cleanup with verification
-
-**Production Features**:
-- Autoscaling GPU node pool (0-2 nodes)
-- Cost optimization ($1.36/hour vs. tutorial's fixed deployment)
-- Persistent volume for model caching (faster restarts)
-- Resource limits and requests defined
-- Production Helm values configuration
-
-**Documentation**:
-- Architecture deep-dive (517 lines: GPU memory layout, autoscaling mechanics)
-- Interview preparation guide (357 lines: design decisions, talking points)
-- Operational runbooks (troubleshooting, monitoring, incident response)
-- Quick reference guide (one-page ops commands)
-- Script documentation (usage, security, examples)
-
-**Developer Experience**:
-- Structured repository (charts, scripts, docs, runbooks separated)
-- GitHub templates (PR, issues)
-- Contributing guidelines
-- Verification script (validates complete setup)
-
-**Tutorial Compatibility**: All core deployment steps from the [Google Codelabs tutorial](https://codelabs.developers.google.com/codelabs/nvidia-nim-google-cloud) are preserved and enhanced, not replaced.
+**Tutorial compatibility**: the core deployment steps from the
+[Google Codelabs tutorial](https://codelabs.developers.google.com/codelabs/nvidia-nim-google-cloud)
+are preserved.
 
 ---
 
 ## Architecture
 
-NIM container → TensorRT-LLM → vLLM backend → L4 GPU → GKE node pool
+NIM container (TensorRT-LLM + vLLM backend) → L4 GPU → GKE node pool
 
 **Components**:
 - **Model**: Meta Llama 3 8B Instruct
-- **Runtime**: NVIDIA NIM 1.0.0 (TensorRT-LLM + vLLM)
-- **Orchestration**: Kubernetes StatefulSet + Helm
-- **Compute**: GKE with g2-standard-4 nodes (L4 GPU, 24GB VRAM)
+- **Runtime**: NVIDIA NIM, image `nvcr.io/nim/meta/llama3-8b-instruct:1.0.0`
+- **Chart**: `nim-llm` 1.3.0 (fetched at deploy time; not committed to the repo)
+- **Orchestration**: Kubernetes StatefulSet via Helm
+- **Compute (measured path, `deploy_nim_gke.sh`)**: one `g2-standard-4` node
+  with one NVIDIA L4, plus one `e2-standard-4` system node. Fixed node
+  counts; no autoscaling.
+- **Compute (unmeasured path, `deploy_nim_production.sh`)**: GPU node pool
+  autoscales 0-2 nodes; system pool has a minimum of 1 node.
 - **API**: OpenAI-compatible REST (`/v1/chat/completions`)
 
-**Autoscaling**: GPU node pool scales 0→2 based on pod requests.
+### Hardware support
 
-**Cost**: ~$1.36/hour when active on the production path (not re-measured). $0/hour when scaled to zero. The basic path (`deploy_nim_gke.sh`) was measured on 2026-09-27: about $0.98/hour while up, and $0.43 for a full deploy, smoke test, and destroy ([run receipt](docs/runs/2026-09-27-measured-run.md)).
+NVIDIA's current NIM support matrix lists `llama-3.1-8b-instruct`, and no row
+lists the NVIDIA L4 (checked 2026-09-27:
+https://docs.nvidia.com/nim/large-language-models/latest/reference/support-matrix.html).
+This repo runs the earlier `llama3-8b-instruct:1.0.0` image on one L4; it is
+off the current matrix and measured working (see the
+[run receipt](docs/runs/2026-09-27-measured-run.md)). Newer chart and image
+versions are not yet tested here.
 
 ---
 
@@ -79,43 +77,51 @@ NIM container → TensorRT-LLM → vLLM backend → L4 GPU → GKE node pool
 
 **GPU quota approval**: Required before deployment. See `/docs/GPU_QUOTA_GUIDE.md`.
 
+`NGC_API_KEY` is the variable the `nim-llm` chart and NVIDIA's docs use
+(https://docs.nvidia.com/nim/large-language-models/latest/deployment/kubernetes-deployment/helm-k8s.html).
+`NGC_CLI_API_KEY` is still accepted as a fallback if `NGC_API_KEY` is unset.
+
 ---
 
 ## Deployment
 
-### Quick Start
+### Quick Start (measured path)
 
 ```bash
-# 1. Set NGC API key
-export NGC_CLI_API_KEY='your-key-here'
+# 1. Set the two required variables
+export NGC_API_KEY='your-key-here'
+export PROJECT_ID='your-gcp-project'
 
-# 2. Configure project
-export PROJECT_ID="your-gcp-project"
-export REGION="us-central1"
-export ZONE="us-central1-a"
+# 2. Preflight checks (read-only)
+./scripts/preflight.sh
 
 # 3. Deploy
 ./scripts/deploy_nim_gke.sh
 
 # 4. Verify
 kubectl get pods -n nim
-kubectl port-forward service/my-nim-nim-llm 8000:8000 -n nim
+kubectl port-forward -n nim svc/my-nim-nim-llm 8000:8000
+
+# 5. Test
+./scripts/test_nim.sh          # or: python3 scripts/bench.py
+
+# 6. Tear down
+./scripts/cleanup.sh
 ```
 
-### Production Deployment
+All other settings (region, zone, cluster name, machine types, chart
+version, release name, namespace) come from `scripts/config.env`. Override
+any of them by exporting the variable before running a script.
+
+### Production Deployment (not measured)
 
 ```bash
-# Validate environment
-./scripts/setup_environment.sh
-
-# Deploy with production values
 ./scripts/deploy_nim_production.sh
-
-# Run integration tests
 ./scripts/test_nim_production.sh
 ```
 
-**Expected duration**: 25-35 minutes (cluster creation + model loading).
+Autoscaling GPU pool (0-2 nodes) and a system pool with a minimum of 1
+node. No timing or cost numbers exist for this path.
 
 ---
 
@@ -138,7 +144,7 @@ curl -X POST http://localhost:8000/v1/chat/completions \
   }'
 ```
 
-**Expected response time**: 3-6 seconds.
+This single call is not a benchmark. For measured latency and the method behind it, see the [cost and performance](#cost-and-performance) table and `scripts/bench.py`.
 
 ---
 
@@ -178,9 +184,8 @@ gcloud container node-pools resize gpupool \
 ```bash
 # Remove deployment (keep cluster)
 helm uninstall my-nim -n nim
-# GPU nodes auto-scale to 0
 
-# Delete cluster (stop all costs)
+# Delete cluster, PVC, and list leftover disks
 ./scripts/cleanup.sh
 ```
 
@@ -194,19 +199,17 @@ kubectl describe pod -n nim my-nim-nim-llm-0
 # Check: GPU availability, node readiness, quotas
 ```
 
-**ImagePullBackOff**:
+**ImagePullBackOff** (image pulls use `registry-secret`):
 ```bash
-# Verify NGC secret
-kubectl get secret ngc-api -n nim -o yaml
-# Recreate if needed
-kubectl delete secret ngc-api -n nim
-kubectl create secret generic ngc-api \
-  --from-literal=NGC_API_KEY=$NGC_CLI_API_KEY \
-  -n nim
+kubectl get secret registry-secret -n nim
+# Recreate both secrets if needed
+PROJECT_ID="${PROJECT_ID:-x}" source scripts/config.env   # run from the repo root
+ngc_apply_secrets nim   # recreates registry-secret and ngc-api; key stays off the command line
+kubectl delete pod my-nim-nim-llm-0 -n nim
 ```
 
 **Model loading slow**:
-- Expected: 10-15 minutes on first deployment
+- Measured: model download to Ready took 8 m 39 s in the run receipt.
 - Monitor: `kubectl logs -f my-nim-nim-llm-0 -n nim`
 
 See `/runbooks/troubleshooting.md` for complete procedures.
@@ -218,19 +221,21 @@ See `/runbooks/troubleshooting.md` for complete procedures.
 ```
 nim-gke/
 ├── charts/                     # Helm charts and values
-│   ├── nim-llm-1.3.0.tgz      # NVIDIA NIM chart
-│   └── values-production.yaml  # Production config
+│   └── values-production.yaml  # Production config (chart .tgz is gitignored, fetched at deploy time)
 ├── scripts/                    # Deployment and ops scripts
-│   ├── deploy_nim_gke.sh      # Main deployment
-│   ├── setup_environment.sh    # Prerequisite validation
-│   ├── test_nim_production.sh  # Integration tests
-│   ├── cleanup.sh             # Resource deletion
-│   └── monitor_deployment.sh   # Status monitoring
+│   ├── config.env              # Shared settings, sourced by every script
+│   ├── preflight.sh             # Read-only checks before deploy
+│   ├── deploy_nim_gke.sh        # Main (measured) deployment
+│   ├── deploy_nim_production.sh # Autoscaling deployment (not measured)
+│   ├── bench.py                 # Benchmark used for the measured run
+│   ├── test_nim.sh              # Basic smoke test
+│   ├── cleanup.sh               # Resource deletion
+│   └── monitor_deployment.sh    # Status monitoring
 ├── docs/                       # Documentation
-│   ├── DEPLOYMENT_SUCCESS.md   # Deployment guide
+│   ├── runs/2026-09-27-measured-run.md  # Measured numbers (source of truth)
 │   ├── PRODUCTION_GUIDE.md     # Operations manual
 │   ├── GPU_QUOTA_GUIDE.md      # Quota request process
-│   └── interview/              # Interview preparation materials
+│   └── QUICKSTART.md
 ├── runbooks/                   # Operational procedures
 │   └── troubleshooting.md      # Incident response
 ├── examples/                   # Configuration templates
@@ -244,66 +249,63 @@ nim-gke/
 
 ### Helm Values
 
-Edit `charts/values-production.yaml`:
-
-```yaml
-image:
-  repository: "nvcr.io/nim/meta/llama3-8b-instruct"
-  tag: "1.0.0"
-
-resources:
-  limits:
-    nvidia.com/gpu: 1
-  requests:
-    nvidia.com/gpu: 1
-
-persistence:
-  enabled: true
-  size: 50Gi
-```
+The deploy scripts generate their Helm values inline from `scripts/config.env`
+(image repo and tag, chart version, namespace). To change them, export the
+variable before running a script, for example `export NIM_IMAGE_TAG=...`.
+`charts/values-production.yaml` is a reference copy of those values for CI
+linting; no script passes it to Helm.
 
 ### Environment Variables
 
+All defaults live in `scripts/config.env`. `PROJECT_ID` has no default and
+must be exported. `NGC_API_KEY` must be exported too (see
+[Prerequisites](#prerequisites) for the fallback). Everything else below is
+an optional override.
+
 | Variable | Default | Purpose |
 |----------|---------|---------|
-| `PROJECT_ID` | `your-gcp-project` | GCP project |
+| `PROJECT_ID` | *(required, no default)* | GCP project |
+| `NGC_API_KEY` | *(required)* | NIM registry auth |
 | `REGION` | `us-central1` | GCP region |
 | `ZONE` | `us-central1-a` | GKE zone |
 | `CLUSTER_NAME` | `nim-demo` | Cluster identifier |
 | `GPU_TYPE` | `nvidia-l4` | GPU accelerator type |
-| `NODE_POOL_MACHINE_TYPE` | `g2-standard-4` | Node instance type |
+| `NODE_POOL_MACHINE_TYPE` | `g2-standard-4` | GPU node instance type |
+| `CLUSTER_MACHINE_TYPE` | `e2-standard-4` | System node instance type |
+| `NIM_CHART_VERSION` | `1.3.0` | Helm chart version |
+| `NIM_RELEASE_NAME` | `my-nim` | Helm release name |
+| `NIM_NAMESPACE` | `nim` | Kubernetes namespace |
 
 ---
 
-## Performance
+## Cost and Performance
 
-| Metric | Value | Notes |
-|--------|-------|-------|
-| **First token latency** | 2-3s | Cold start |
-| **Throughput** | 15-20 tokens/s | L4 GPU, FP16 |
-| **Batch size** | Dynamic | vLLM continuous batching |
-| **Context length** | 8192 tokens | Llama 3 limit |
-| **GPU memory** | ~12GB used | Of 24GB available |
+Measured once, on `deploy_nim_gke.sh`, project `nim-on-gke`,
+`us-central1-a`, chart `nim-llm-1.3.0`, image
+`nvcr.io/nim/meta/llama3-8b-instruct:1.0.0`. Full detail, methodology, and
+list-price sources: [docs/runs/2026-09-27-measured-run.md](docs/runs/2026-09-27-measured-run.md).
+This is the only cost/performance table in the repo; other docs link here.
 
----
+| Metric | Value |
+|--------|-------|
+| Deploy time, script start to pod Ready | 20 m 19 s |
+| Time to first token (5 streamed requests) | p50 0.29 s, max 0.30 s |
+| Output throughput, single stream | p50 15.9 tokens/s, min 15.2 |
+| Latency, 20 requests, 256 max tokens, temp 0 | p50 11.1 s, p95 16.0 s |
+| Cost for one full deploy + smoke test + destroy | $0.43 |
+| Running cost while the deployment is up | ~$0.98/hour |
+| Output cost, single stream, GPU node only | ~$12 per million output tokens |
 
-## Cost
-
-**Baseline** (no load):
-- Control plane: $0.13/hour
-- **Total**: $0.13/hour
-
-**Active** (1 GPU node):
-- Control plane: $0.13/hour
-- GPU node (g2-standard-4): $0.50/hour
-- L4 GPU: $0.73/hour
-- **Total**: $1.36/hour (~$980/month)
-
-**Optimization strategies**:
-1. Autoscaling to zero when idle
-2. Preemptible nodes (-80% cost, accepts interruption)
-3. Committed use discounts (-37% for 3-year)
-4. Regional vs. zonal deployment tradeoffs
+Notes:
+- `g2-standard-4` with 1× L4 is priced as one bundled SKU: $0.7068/hour
+  (measured 2026-09-27 from the Google Cloud Billing Catalog API). GCP does
+  not price the GPU as a separate line item on this machine type.
+- The system pool (`e2-standard-4`) keeps a minimum of 1 node, and the GKE
+  zonal cluster fee applies, on both the measured and the unmeasured
+  autoscaling path. There is no "$0/hour while idle" state short of
+  deleting the cluster.
+- The autoscaling production path (`deploy_nim_production.sh`) has not been
+  measured; it has no cost or latency numbers here.
 
 ---
 
@@ -312,8 +314,8 @@ persistence:
 - ✅ NGC API key stored as Kubernetes Secret
 - ✅ Image pull secrets for nvcr.io registry
 - ✅ Service exposed via ClusterIP (internal only)
-- ✅ TLS for production (configure Ingress + cert-manager)
-- ⚠️ Authentication: Implement API gateway for production workloads
+- ⚠️ TLS: not configured; would need Ingress + cert-manager
+- ⚠️ Authentication: no API gateway; add one before any production use
 
 ---
 
@@ -323,6 +325,7 @@ persistence:
 - **Model size**: Llama 3 8B fits L4. Larger models need A100/H100
 - **Persistence**: Model cached on PV. Deletion triggers re-download
 - **Regional availability**: L4 not in all GCP zones
+- **Off support matrix**: see [Hardware support](#hardware-support) above
 
 ---
 
@@ -332,18 +335,18 @@ persistence:
 
 - **[Google Codelabs - Deploy AI on GKE with NVIDIA NIM](https://codelabs.developers.google.com/codelabs/nvidia-nim-google-cloud)** - Original tutorial this repository is based on
 - **[NVIDIA NIM Documentation](https://docs.nvidia.com/nim/)** - Official NIM microservices documentation
+- **[NVIDIA NIM support matrix](https://docs.nvidia.com/nim/large-language-models/latest/reference/support-matrix.html)** - Supported GPUs and models
 - **[GKE GPU Guide](https://cloud.google.com/kubernetes-engine/docs/how-to/gpus)** - Google Cloud GPU setup and configuration
 
 ### Core Technologies
 
-- **[TensorRT-LLM](https://github.com/NVIDIA/TensorRT-LLM)** - NVIDIA's optimized inference engine (FP16 precision, fused kernels)
+- **[TensorRT-LLM](https://github.com/NVIDIA/TensorRT-LLM)** - NVIDIA's optimized inference engine
 - **[vLLM](https://github.com/vllm-project/vllm)** - High-throughput LLM serving framework (continuous batching, PagedAttention)
 - **[Kubernetes](https://kubernetes.io/docs/)** - Container orchestration platform
 - **[Helm](https://helm.sh/docs/)** - Kubernetes package manager
 
 ### Additional Resources
 
-- **[NVIDIA AI Enterprise](https://www.nvidia.com/en-us/data-center/products/ai-enterprise/)** - Enterprise AI software platform
 - **[GCP GPU Regions](https://cloud.google.com/compute/docs/gpus/gpu-regions-zones)** - GPU availability by region
 - **[Llama 3 Model Card](https://huggingface.co/meta-llama/Meta-Llama-3-8B-Instruct)** - Model documentation
 
@@ -355,7 +358,4 @@ Provided as-is for educational and reference purposes. NVIDIA NIM requires accep
 
 ---
 
-**Status**: Production-ready ✅  
-**Last validated**: October 2025  
-**GKE version**: 1.34+  
-**NIM version**: 1.0.0
+**Last measured**: 2026-09-27 (see [run receipt](docs/runs/2026-09-27-measured-run.md))

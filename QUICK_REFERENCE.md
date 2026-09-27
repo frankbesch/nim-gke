@@ -7,13 +7,15 @@ One-page operational reference.
 ## 🚀 Deploy (Fresh Start)
 
 ```bash
-export NGC_CLI_API_KEY='your-key-here'
+export NGC_API_KEY='your-key-here'   # NGC_CLI_API_KEY accepted as a fallback
+export PROJECT_ID='your-gcp-project'
 cd ~/nim-gke
+./scripts/preflight.sh
 ./scripts/deploy_nim_gke.sh
 ```
 
-**Duration**: 30 minutes  
-**Cost**: $1.36/hour
+**Duration**: measured 20 m 19 s (script start to pod Ready)
+**Cost**: see the [cost and performance table in README](README.md#cost-and-performance)
 
 ---
 
@@ -54,17 +56,16 @@ kubectl top pod -n nim
 ./scripts/cleanup.sh
 ```
 
-**Result**: All resources deleted, $0/hour
+**Result**: Uninstalls the release, deletes the PVC, deletes the cluster, then lists any leftover disks.
 
 ---
 
 ## 💰 Cost Tracking
 
-| State | Cost/Hour | Cost/Day |
-|-------|-----------|----------|
-| Running | $1.36 | $32.64 |
-| Idle (no GPU) | $0.13 | $3.12 |
-| Deleted | $0 | $0 |
+See the [cost and performance table in README](README.md#cost-and-performance)
+for measured figures. Summary: ~$0.98/hour while up, $0.43 for one full
+deploy/test/destroy run. The system pool keeps a minimum of 1 node, so
+there is no idle-but-running $0/hour state; only a deleted cluster is $0.
 
 **Check current costs**:
 ```bash
@@ -113,10 +114,10 @@ gcloud container clusters get-credentials nim-demo --zone=us-central1-a
 ## 🔑 Environment Variables
 
 ```bash
-export NGC_CLI_API_KEY='...'        # Required
-export PROJECT_ID='your-gcp-project'      # Default
-export REGION='us-central1'         # Default
-export ZONE='us-central1-a'         # Default
+export NGC_API_KEY='...'            # Required
+export PROJECT_ID='your-gcp-project' # Required, no default
+export REGION='us-central1'         # Optional override (default shown)
+export ZONE='us-central1-a'         # Optional override (default shown)
 ```
 
 ---

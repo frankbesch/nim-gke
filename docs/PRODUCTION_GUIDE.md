@@ -1,49 +1,57 @@
-# 🚀 NVIDIA NIM on GKE - DevOps Production Guide
+# NVIDIA NIM on GKE - Production Guide
 
-## 📋 **Streamlined Deployment Strategy**
+## Deployment Strategy
 
-Based on the [official Google Codelabs tutorial](https://codelabs.developers.google.com/codelabs/nvidia-nim-google-cloud), I've optimized your environment for **production-ready, fault-tolerant execution**.
+Based on the [official Google Codelabs tutorial](https://codelabs.developers.google.com/codelabs/nvidia-nim-google-cloud).
+
+**Status**: `deploy_nim_production.sh` (autoscaling GPU pool, 0-2 nodes) is
+unmeasured. The one measured end-to-end run used
+`scripts/deploy_nim_gke.sh` with a fixed 1-node GPU pool; see
+[docs/runs/2026-09-27-measured-run.md](runs/2026-09-27-measured-run.md) for
+the only verified timings, latency, and cost. Treat every figure in this
+guide that is not sourced from that receipt as a plan, not a result.
 
 ---
 
-## 🎯 **Optimized Scripts Overview**
+## Scripts Overview
 
-| Script | Purpose | Production Features |
+| Script | Purpose | Status |
 |--------|---------|-------------------|
-| **`setup_environment.sh`** | Environment validation | ✅ Comprehensive checks, auto-fix |
-| **`deploy_nim_production.sh`** | Main deployment | ✅ Error handling, monitoring, autoscaling |
-| **`test_nim_production.sh`** | Production testing | ✅ Load testing, performance metrics |
-| **`cleanup.sh`** | Resource cleanup | ✅ Safe deletion, cost optimization |
+| **`setup_environment.sh`** | Environment validation | Checks tools, auth, quotas |
+| **`deploy_nim_production.sh`** | Autoscaling deployment | Unmeasured; not the receipt run |
+| **`test_nim_production.sh`** | Load/perf testing | Unmeasured |
+| **`cleanup.sh`** | Resource cleanup | Deletes cluster/node pool/PVC |
+
+All scripts source `scripts/config.env`. `PROJECT_ID` is required there with
+no default; scripts no longer call `gcloud config set project`.
 
 ---
 
-## 🚀 **One-Command Deployment**
+## Deployment Steps
 
-### **Step 1: Environment Setup & Validation**
+### Step 1: Environment Setup & Validation
 ```bash
 cd ~/nim-gke
 ./setup_environment.sh
 ```
 
 **What it does:**
-- ✅ Validates all tools (gcloud, kubectl, helm, jq)
-- ✅ Sets up GCP authentication
-- ✅ Enables required APIs
-- ✅ Validates quotas (CPU, GPU, billing)
-- ✅ Tests NGC API key
-- ✅ Verifies network connectivity
+- Validates tools (gcloud, kubectl, helm, jq)
+- Sets up GCP authentication
+- Enables required APIs
+- Validates quotas (CPU, GPU, billing)
+- Tests NGC API key
+- Verifies network connectivity
 
-### **Step 2: Production Deployment**
+### Step 2: Deployment
 ```bash
 ./deploy_nim_production.sh
 ```
 
-**What it does:**
-- ✅ Creates GKE cluster with autoscaling
-- ✅ Adds GPU node pool with autoscaling (0-2 nodes)
-- ✅ Deploys NVIDIA NIM with production configs
-- ✅ Configures monitoring and health checks
-- ✅ Waits for deployment readiness
+**Configuration**: GPU node pool autoscales 0-2 nodes; the system pool has a
+minimum of 1 node. This script has not been run end-to-end and measured. For
+the one measured deploy/smoke/destroy cycle, use `scripts/deploy_nim_gke.sh`
+and see the receipt linked above.
 
 ### **Step 3: Production Testing**
 ```bash
@@ -75,8 +83,8 @@ kubectl port-forward service/my-nim-nim-llm 8000:8000 -n nim
 # Auto-repair and auto-upgrade
 --enable-autorepair --enable-autoupgrade
 
-# Health checks and readiness probes
-kubectl wait --for=condition=Available deployment/my-nim-nim-llm
+# Health checks and readiness probes (workload is a StatefulSet, not a Deployment)
+kubectl rollout status statefulset/my-nim-nim-llm -n nim
 ```
 
 ### **2. Resource Optimization**
@@ -125,10 +133,10 @@ kubectl describe node | grep -A 5 "nvidia.com/gpu"
 ### **Scaling Operations**
 ```bash
 # Scale up for high load
-kubectl scale deployment my-nim-nim-llm --replicas=3 -n nim
+kubectl scale statefulset my-nim-nim-llm --replicas=3 -n nim
 
 # Scale down for cost savings
-kubectl scale deployment my-nim-nim-llm --replicas=1 -n nim
+kubectl scale statefulset my-nim-nim-llm --replicas=1 -n nim
 
 # Scale node pool
 gcloud container node-pools resize gpupool --cluster=nim-demo --zone=us-central1-a --num-nodes=2
@@ -136,18 +144,13 @@ gcloud container node-pools resize gpupool --cluster=nim-demo --zone=us-central1
 
 ---
 
-## 💰 **Cost Management**
+## Cost Management
 
-### **Current Configuration**
-```
-Control Plane (e2-standard-4):     $0.13/hour
-GPU Node (g2-standard-4):          $0.50/hour  
-NVIDIA L4 GPU:                     $0.73/hour
-─────────────────────────────────────────────────
-TOTAL:                             $1.36/hour
-Daily (24h):                       ~$32.64
-Monthly (24/7):                    ~$976
-```
+See the single cost table in [README cost table](../README.md#cost-and-performance) and the
+measured run's cost breakdown in
+[docs/runs/2026-09-27-measured-run.md](runs/2026-09-27-measured-run.md).
+This production configuration (autoscaling 0-2 GPU nodes) has not been run
+or costed; only the fixed 1-node deployment in the receipt is measured.
 
 ### **Cost Optimization Strategies**
 1. **Autoscaling** - Scales to 0 when not in use
@@ -207,7 +210,7 @@ gcloud compute regions describe us-central1 | grep GPU
 #### **2. Image Pull Errors**
 ```bash
 # Verify NGC API key
-echo $NGC_CLI_API_KEY
+echo $NGC_API_KEY
 
 # Check secrets
 kubectl get secrets -n nim
@@ -226,7 +229,7 @@ kubectl top pod -n nim
 kubectl exec -n nim $(kubectl get pods -n nim -o jsonpath='{.items[0].metadata.name}') -- nvidia-smi
 
 # Scale up if needed
-kubectl scale deployment my-nim-nim-llm --replicas=2 -n nim
+kubectl scale statefulset my-nim-nim-llm --replicas=2 -n nim
 ```
 
 ---
@@ -286,14 +289,14 @@ env:
 ## 🚀 **Quick Start Commands**
 
 ```bash
-# Complete deployment in 3 commands
-cd ~/nim-gke
-./setup_environment.sh      # 2 minutes
-./deploy_nim_production.sh  # 35 minutes
-./test_nim_production.sh    # 5 minutes
+# From the repo root
+./scripts/setup_environment.sh
+./scripts/deploy_nim_production.sh
+./scripts/test_nim_production.sh
 
-# Total time: ~42 minutes
-# Total cost: ~$1.36/hour when running
+# Timing and cost for this autoscaling production path are not measured.
+# See the README "Cost and Performance" table and docs/runs/2026-09-27-measured-run.md
+# for the one measured run (fixed 1-node GPU pool, deploy_nim_gke.sh).
 ```
 
 ---
@@ -307,4 +310,5 @@ cd ~/nim-gke
 
 ---
 
-**Your NVIDIA NIM deployment is now production-ready with enterprise-grade reliability, monitoring, and cost optimization!** 🎉
+`deploy_nim_production.sh` has not been run end-to-end. Treat this guide as
+a design for an autoscaling deployment, not a verified result.

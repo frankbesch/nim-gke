@@ -9,12 +9,11 @@
 # 2. GPU node pool is added (add_gpu_nodepool.sh)
 #
 
-set -e
+set -euo pipefail
 
 # --- Configuration ---
-export PROJECT_ID="your-gcp-project"
-export ZONE="us-central1-a"
-export CLUSTER_NAME="nim-demo"
+source "$(dirname "${BASH_SOURCE[0]}")/config.env"
+require_project_id
 
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "🚀 Deploying NVIDIA NIM to Existing Cluster"
@@ -22,19 +21,19 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 echo ""
 
 # --- Check NGC API Key ---
-if [[ -z "${NGC_CLI_API_KEY}" ]]; then
-  echo "❌ ERROR: NGC_CLI_API_KEY environment variable is not set!"
-  echo "   Run: export NGC_CLI_API_KEY='your-key-here'"
+if [[ -z "${NGC_API_KEY}" ]]; then
+  echo "❌ ERROR: NGC_API_KEY environment variable is not set!"
+  echo "   Run: export NGC_API_KEY='your-key-here'"
   echo "   Or: source ./set_ngc_key.sh"
   exit 1
 fi
 
-echo "✅ NGC_CLI_API_KEY is set"
+echo "✅ NGC_API_KEY is set"
 echo ""
 
 # --- Get Cluster Credentials ---
 echo "🔑 Getting cluster credentials..."
-gcloud container clusters get-credentials ${CLUSTER_NAME} --zone=${ZONE}
+gcloud container clusters get-credentials "${CLUSTER_NAME}" --zone="${ZONE}" --project="${PROJECT_ID}"
 
 # --- Verify Cluster and GPU Nodes ---
 echo ""
@@ -53,12 +52,14 @@ fi
 echo "✅ Found ${GPU_NODE_COUNT} GPU node(s)"
 echo ""
 
+# --- Work in a temp directory ---
+WORK_DIR=$(mktemp -d)
+trap 'rm -rf "${WORK_DIR}"' EXIT
+
 # --- Fetch NIM Helm Chart ---
 echo "📦 Fetching NIM LLM Helm chart..."
-if [ ! -f "nim-llm-1.3.0.tgz" ]; then
-  helm fetch https://helm.ngc.nvidia.com/nim/charts/nim-llm-1.3.0.tgz \
-    --username='$oauthtoken' \
-    --password=${NGC_CLI_API_KEY}
+if [ ! -f "${WORK_DIR}/nim-llm-${NIM_CHART_VERSION}.tgz" ]; then
+  ngc_fetch_chart "${WORK_DIR}"
   echo "✅ Helm chart downloaded"
 else
   echo "✅ Helm chart already exists"
@@ -67,23 +68,13 @@ fi
 # --- Create NIM Namespace ---
 echo ""
 echo "🏷️  Creating NIM namespace..."
-kubectl create namespace nim --dry-run=client -o yaml | kubectl apply -f -
+kubectl create namespace "${NIM_NAMESPACE}" --dry-run=client -o yaml | kubectl apply -f -
 
 # --- Configure Kubernetes Secrets ---
 echo ""
 echo "🔐 Configuring Kubernetes secrets..."
 
-kubectl create secret docker-registry registry-secret \
-  --docker-server=nvcr.io \
-  --docker-username='$oauthtoken' \
-  --docker-password=${NGC_CLI_API_KEY} \
-  -n nim \
-  --dry-run=client -o yaml | kubectl apply -f -
-
-kubectl create secret generic ngc-api \
-  --from-literal=NGC_API_KEY=${NGC_CLI_API_KEY} \
-  -n nim \
-  --dry-run=client -o yaml | kubectl apply -f -
+ngc_apply_secrets "${NIM_NAMESPACE}"
 
 echo "✅ Secrets configured"
 
@@ -91,10 +82,10 @@ echo "✅ Secrets configured"
 echo ""
 echo "📝 Creating NIM configuration file..."
 
-cat <<EOF > nim_custom_value.yaml
+cat <<EOF > "${WORK_DIR}/nim_custom_value.yaml"
 image:
-  repository: "nvcr.io/nim/meta/llama3-8b-instruct"
-  tag: "1.0.0"
+  repository: "${NIM_IMAGE_REPO}"
+  tag: "${NIM_IMAGE_TAG}"
 model:
   ngcAPISecret: ngc-api
 persistence:
@@ -111,9 +102,9 @@ echo "🚀 Deploying NVIDIA NIM..."
 echo "   This will download the model and may take 10-20 minutes..."
 echo ""
 
-helm install my-nim nim-llm-1.3.0.tgz \
-  -f nim_custom_value.yaml \
-  --namespace nim
+helm upgrade --install "${NIM_RELEASE_NAME}" "${WORK_DIR}/nim-llm-${NIM_CHART_VERSION}.tgz" \
+  -f "${WORK_DIR}/nim_custom_value.yaml" \
+  --namespace "${NIM_NAMESPACE}"
 
 echo ""
 echo "✅ NIM deployment initiated"
@@ -123,7 +114,7 @@ echo ""
 echo "👀 Monitoring NIM deployment..."
 sleep 10
 
-kubectl get pods -n nim
+kubectl get pods -n "${NIM_NAMESPACE}"
 
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -133,14 +124,14 @@ echo ""
 echo "📌 Next Steps:"
 echo ""
 echo "1️⃣  Wait for pod to be ready (may take 10-20 minutes):"
-echo "   kubectl get pods -n nim -w"
+echo "   kubectl get pods -n ${NIM_NAMESPACE} -w"
 echo ""
 echo "2️⃣  Check logs:"
-echo "   kubectl logs -f -n nim \$(kubectl get pods -n nim -o jsonpath='{.items[0].metadata.name}')"
+echo "   kubectl logs -f -n ${NIM_NAMESPACE} \$(kubectl get pods -n ${NIM_NAMESPACE} -o jsonpath='{.items[0].metadata.name}')"
 echo ""
 echo "3️⃣  Once ready, test the deployment:"
 echo "   # Terminal 1: Port forward"
-echo "   kubectl port-forward service/my-nim-nim-llm 8000:8000 -n nim"
+echo "   kubectl port-forward service/${NIM_RELEASE_NAME}-nim-llm 8000:8000 -n ${NIM_NAMESPACE}"
 echo ""
 echo "   # Terminal 2: Test"
 echo "   ./test_nim.sh"
@@ -148,4 +139,3 @@ echo ""
 echo "🗑️  To cleanup:"
 echo "   ./cleanup.sh"
 echo ""
-

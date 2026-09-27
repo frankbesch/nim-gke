@@ -3,20 +3,16 @@
 # ============================================
 # 🎮 Add GPU Node Pool to Existing Cluster
 # ============================================
-# 
+#
 # Use this script after GPU quota is approved
 # to add the GPU node pool to your existing cluster
 #
 
-set -e
+set -euo pipefail
 
 # --- Configuration ---
-export PROJECT_ID="your-gcp-project"
-export ZONE="us-central1-a"
-export CLUSTER_NAME="nim-demo"
-export NODE_POOL_MACHINE_TYPE="g2-standard-4"   # For NVIDIA L4 GPU (cost-optimized)
-export GPU_TYPE="nvidia-l4"
-export GPU_COUNT=1
+source "$(dirname "${BASH_SOURCE[0]}")/config.env"
+require_project_id
 
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "🎮 Adding GPU Node Pool to Existing Cluster"
@@ -30,7 +26,7 @@ echo "  Machine Type: ${NODE_POOL_MACHINE_TYPE}"
 echo ""
 
 # Check if cluster exists
-if ! gcloud container clusters describe ${CLUSTER_NAME} --zone=${ZONE} &> /dev/null; then
+if ! gcloud container clusters describe "${CLUSTER_NAME}" --zone="${ZONE}" --project="${PROJECT_ID}" &> /dev/null; then
   echo "❌ Cluster ${CLUSTER_NAME} not found in ${ZONE}"
   echo "   Run ./deploy_nim_gke.sh to create the cluster first"
   exit 1
@@ -40,15 +36,16 @@ echo "✅ Cluster ${CLUSTER_NAME} found"
 echo ""
 
 # Check if GPU node pool already exists
-if gcloud container node-pools describe gpupool --cluster=${CLUSTER_NAME} --zone=${ZONE} &> /dev/null; then
+if gcloud container node-pools describe gpupool --cluster="${CLUSTER_NAME}" --zone="${ZONE}" --project="${PROJECT_ID}" &> /dev/null; then
   echo "⚠️  GPU node pool 'gpupool' already exists"
   echo ""
   read -p "Delete and recreate? (yes/no): " RECREATE
   if [[ "${RECREATE}" == "yes" ]]; then
     echo "🗑️  Deleting existing GPU node pool..."
     gcloud container node-pools delete gpupool \
-      --cluster=${CLUSTER_NAME} \
-      --zone=${ZONE} \
+      --cluster="${CLUSTER_NAME}" \
+      --zone="${ZONE}" \
+      --project="${PROJECT_ID}" \
       --quiet
     echo "✅ Deleted"
   else
@@ -64,11 +61,11 @@ echo "   This may take 5-10 minutes..."
 echo ""
 
 gcloud container node-pools create gpupool \
-    --accelerator type=${GPU_TYPE},count=${GPU_COUNT},gpu-driver-version=latest \
-    --project=${PROJECT_ID} \
-    --location=${ZONE} \
-    --cluster=${CLUSTER_NAME} \
-    --machine-type=${NODE_POOL_MACHINE_TYPE} \
+    --accelerator type="${GPU_TYPE}",count="${GPU_COUNT}",gpu-driver-version=latest \
+    --project="${PROJECT_ID}" \
+    --location="${ZONE}" \
+    --cluster="${CLUSTER_NAME}" \
+    --machine-type="${NODE_POOL_MACHINE_TYPE}" \
     --num-nodes=1
 
 if [ $? -eq 0 ]; then
@@ -83,7 +80,7 @@ if [ $? -eq 0 ]; then
   echo "🎯 Next Steps:"
   echo ""
   echo "1️⃣  Continue with NIM deployment:"
-  echo "   export NGC_CLI_API_KEY='your-key-here'"
+  echo "   export NGC_API_KEY='your-key-here'"
   echo "   # Then run the deployment steps manually from deploy_nim_gke.sh"
   echo "   # starting from Step 8 (Fetch NIM Helm Chart)"
   echo ""
@@ -105,4 +102,3 @@ else
   echo ""
   exit 1
 fi
-

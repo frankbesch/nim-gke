@@ -4,15 +4,26 @@
 # 🧪 Test NVIDIA NIM Deployment
 # ============================================
 
+set -euo pipefail
+
+source "$(dirname "${BASH_SOURCE[0]}")/config.env"
+
+SKIP_PROMPT=false
+for arg in "$@"; do
+  if [[ "$arg" == "--yes" ]]; then
+    SKIP_PROMPT=true
+  fi
+done
+
 echo "🧪 Testing NVIDIA NIM Deployment"
 echo ""
 
 # Check if pod is running
 echo "📊 Checking pod status..."
-POD_STATUS=$(kubectl get pods -n nim -o jsonpath='{.items[0].status.phase}' 2>/dev/null)
+POD_STATUS=$(kubectl get pods -n "${NIM_NAMESPACE}" -o jsonpath='{.items[0].status.phase}' 2>/dev/null || true)
 
 if [[ -z "${POD_STATUS}" ]]; then
-  echo "❌ No pods found in nim namespace"
+  echo "❌ No pods found in ${NIM_NAMESPACE} namespace"
   echo "   Make sure you've deployed NIM first using: ./deploy_nim_gke.sh"
   exit 1
 fi
@@ -20,7 +31,7 @@ fi
 if [[ "${POD_STATUS}" != "Running" ]]; then
   echo "⚠️  Pod is not ready yet. Current status: ${POD_STATUS}"
   echo "   Please wait for the pod to be in 'Running' state"
-  echo "   Monitor with: kubectl get pods -n nim -w"
+  echo "   Monitor with: kubectl get pods -n ${NIM_NAMESPACE} -w"
   exit 1
 fi
 
@@ -33,9 +44,11 @@ if ! curl -s http://localhost:8000/v1/models > /dev/null 2>&1; then
   echo "⚠️  Port-forward not detected"
   echo ""
   echo "Please run this in a separate terminal:"
-  echo "   kubectl port-forward service/my-nim-nim-llm 8000:8000 -n nim"
+  echo "   kubectl port-forward service/${NIM_RELEASE_NAME}-nim-llm 8000:8000 -n ${NIM_NAMESPACE}"
   echo ""
-  read -p "Press Enter once port-forward is running..."
+  if [[ -t 0 ]] && [[ "${SKIP_PROMPT}" != "true" ]]; then
+    read -p "Press Enter once port-forward is running..."
+  fi
 fi
 
 # Test the models endpoint
@@ -86,4 +99,3 @@ echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "✅ Test Complete!"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-

@@ -100,12 +100,13 @@ chore: upgrade helm chart to v1.4.0
 
 Before submitting a PR:
 
-1. **Lint scripts**: `shellcheck scripts/*.sh`
-2. **Validate YAML**: `yamllint charts/*.yaml`
-3. **Deploy to test cluster**: `./scripts/deploy_nim_gke.sh`
-4. **Run integration tests**: `./scripts/test_nim_production.sh`
-5. **Verify cleanup**: `./scripts/cleanup.sh`
-6. **Check documentation**: All commands tested
+1. **Syntax-check scripts**: `bash -n scripts/*.sh`
+2. **Lint scripts**: `shellcheck -x -S warning scripts/*.sh scripts/config.env`
+3. **Validate YAML**: `yamllint charts/*.yaml`
+4. **Deploy to test cluster**: `./scripts/deploy_nim_gke.sh`
+5. **Run integration tests**: `./scripts/test_nim_production.sh`
+6. **Verify cleanup**: `./scripts/cleanup.sh`
+7. **Check documentation**: All commands tested
 
 ---
 

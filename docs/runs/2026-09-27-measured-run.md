@@ -56,3 +56,22 @@ Running rate while up: about $0.98/hour. The GKE free-tier credit may cover the
 cluster fee, which would make the run $0.37 (not verified). Single-stream output
 cost on the GPU node alone: about $12 per million tokens at 15.9 tokens/s.
 Reconcile against the Cloud Billing report 24–48 hours after the run.
+
+## Reproduce
+
+1. `scripts/preflight.sh` -- read-only checks: NGC key, auth, image tag, chart
+   fetch, L4 quota, no cluster. Stops before any cluster is created if a check
+   fails.
+2. `scripts/deploy_nim_gke.sh` -- creates the cluster and node pool, installs
+   the `nim-llm-1.3.0` chart.
+3. Port-forward the service:
+   `kubectl port-forward -n nim svc/my-nim-nim-llm 8000:8000`.
+4. `python3 scripts/bench.py --out bench.json` -- same method as this run:
+   20 sequential requests (temperature 0, max_tokens 256), 5 streamed
+   requests for time to first token, concurrency 1.
+5. `scripts/cleanup.sh` -- tears the cluster down.
+
+`scripts/preflight.sh` and `scripts/bench.py` were committed after this run;
+`bench.py` is the script used on 2026-09-27, ported unchanged in method
+(same prompts, same request shapes, same percentile math), with argparse
+added so it runs without editing constants.

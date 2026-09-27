@@ -40,17 +40,18 @@ NVIDIA L4 GPU (24GB VRAM, Tensor Cores)
 1. **default-pool** (control plane workloads)
    - Machine type: e2-standard-4 (4 vCPU, 16GB RAM)
    - Nodes: 1 (fixed)
-   - Cost: $0.13/hour
+   - Cost: see [README cost table](../README.md#cost-and-performance)
 
 2. **gpupool** (GPU workloads)
    - Machine type: g2-standard-4 (4 vCPU, 16GB RAM, 1× L4)
    - Nodes: 0-2 (autoscaling)
    - GPU driver: Latest (installed automatically)
-   - Cost: $1.23/hour per node
+   - Cost: see [README cost table](../README.md#cost-and-performance) and
+     [runs/2026-09-27-measured-run.md](runs/2026-09-27-measured-run.md)
 
 **Autoscaling**:
 - Triggered by pod resource requests (`nvidia.com/gpu: 1`)
-- Scale-up latency: 3-5 minutes (node provisioning)
+- Scale-up latency: not measured (the measured run's GPU node pool took 1 m 02 s to create)
 - Scale-down delay: 10 minutes (configurable)
 
 ---
@@ -174,21 +175,12 @@ spec:
 
 #### Secrets
 
-**NGC Registry**:
-```bash
-kubectl create secret docker-registry registry-secret \
-  --docker-server=nvcr.io \
-  --docker-username='$oauthtoken' \
-  --docker-password=$NGC_CLI_API_KEY \
-  -n nim
-```
+Two secrets in namespace `nim`, both created by `ngc_apply_secrets` in
+`scripts/config.env` so the key never appears on a command line:
 
-**NGC API Key**:
-```bash
-kubectl create secret generic ngc-api \
-  --from-literal=NGC_API_KEY=$NGC_CLI_API_KEY \
-  -n nim
-```
+- `registry-secret` (type `kubernetes.io/dockerconfigjson`): pulls images from
+  `nvcr.io` as user `$oauthtoken`.
+- `ngc-api`: holds key `NGC_API_KEY`, the name the nim-llm chart reads.
 
 ---
 
@@ -207,17 +199,15 @@ kubectl create secret generic ngc-api \
 9. **NIM API** → Format OpenAI-compatible response
 10. **Client** → Receive completion
 
-**Latency breakdown**:
-- Network (port-forward): <1ms
-- API parsing: <10ms
-- Queue wait: 0-100ms (depends on batch)
-- First token: 2-3s (prefill)
-- Subsequent tokens: 50-70ms each (decode)
+**Measured latency** (single stream, port-forward, one L4): see
+[runs/2026-09-27-measured-run.md](runs/2026-09-27-measured-run.md) — p50
+11.1s / p95 16.0s end-to-end, p50 time-to-first-token 0.29s, p50 output
+throughput 15.9 tokens/s. These are n=20 and n=5 samples, not a load test.
 
 ### Model Loading
 
-1. **Pod starts** → Check `/opt/nim/.cache` for model
-2. **If missing** → Download from NGC (16GB, 5-10 minutes)
+1. **Pod starts** → Check the `model-store` volume for the model
+2. **If missing** → Download from NGC (measured: 8 m 39 s from container start to Ready)
 3. **vLLM init** → Load weights to GPU memory
 4. **TensorRT-LLM** → Build/load optimized engines
 5. **Warmup** → Run dummy inference to compile kernels
@@ -225,7 +215,7 @@ kubectl create secret generic ngc-api \
 
 **Persistent Volume**:
 - Model cached on PV (survives pod restarts)
-- Subsequent starts: 2-3 minutes (no download)
+- Subsequent starts: faster (no download); not measured
 - Storage class: GCE persistent disk (SSD)
 
 ---
@@ -237,12 +227,8 @@ kubectl create secret generic ngc-api \
 ```
 Total: 24GB L4 VRAM
 
-Breakdown:
-- Model weights (FP16):     ~12GB
-- KV cache (dynamic):       ~6GB  (scales with concurrent requests)
-- Activation memory:        ~2GB
-- CUDA context:             ~1GB
-- Reserved:                 ~3GB
+Breakdown: not measured. Model weights take most of the memory; the KV
+cache uses the rest and scales with concurrent requests.
 ```
 
 **KV Cache Sizing**:
@@ -310,7 +296,7 @@ localhost:8000 → kubectl proxy → API server → Node → Pod:8000
 **Production alternative**: Ingress + LoadBalancer
 - Terminate TLS at Ingress
 - Cloud Load Balancer for HA
-- Additional cost: ~$0.025/hour + traffic
+- Additional cost: unmeasured; see [README cost table](../README.md#cost-and-performance)
 
 ---
 
@@ -328,7 +314,7 @@ localhost:8000 → kubectl proxy → API server → Node → Pod:8000
 2. Evaluates node pool configurations
 3. Chooses pool with matching resources (gpupool)
 4. Calls GCE API to create instance
-5. Instance provisions (3-5 minutes)
+5. Instance provisions (not measured for autoscaling)
 6. Node joins cluster
 7. GPU device plugin advertises resources
 8. Scheduler binds pod to node
@@ -468,9 +454,16 @@ Integrate OpenTelemetry:
 ### Why L4 GPU?
 
 **L4 advantages**:
-- Cost: $0.73/hour vs. A100 $2.93/hour
+- Cost: see [README cost table](../README.md#cost-and-performance) for the measured L4 rate;
+  A100 rate not measured here
 - Availability: More zones than A100/H100
 - Sufficient for 8B models (24GB VRAM)
+
+**Support matrix note**: L4 is off NVIDIA's current published support matrix
+for this model family
+(https://docs.nvidia.com/nim/large-language-models/latest/reference/support-matrix.html).
+It ran and was measured working in this repo's one end-to-end run; see
+[runs/2026-09-27-measured-run.md](runs/2026-09-27-measured-run.md).
 
 **A100 needed for**:
 - Models >30B parameters

@@ -43,3 +43,6 @@ temp/
 # Environment-specific
 .env
 .env.local
+
+# Local editor prompts
+.cursor/
