@@ -431,6 +431,8 @@ mark "preflight end"
 # billable resources.
 # Signals exit with 128+N; `exit` inside a signal trap runs the EXIT trap,
 # so Ctrl-C, kill, and a closed terminal (HUP) all clean up and exit non-zero.
+# A fresh run owns its OUT_DIR: clear any lock left by an earlier killed run.
+rm -rf "${CLEANUP_LOCK_DIR}"
 trap on_exit EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
@@ -484,6 +486,11 @@ rm -f "${WATCHDOG_STOP}"
     # bash 3.2 has no BASHPID; `exec sh` makes $PPID this subshell's pid.
     wd_me="watchdog:${BASHPID:-$(exec sh -c 'echo $PPID')}"
     acquire_cleanup_lock "${wd_me}"
+    # The wait may have been long: re-check before acting.
+    if [[ -f "${WATCHDOG_STOP}" ]] || ! cluster_exists; then
+      release_cleanup_lock "${wd_me}"
+      exit 0
+    fi
     cmd="${RUNNER_CLEANUP:-${SCRIPT_DIR}/cleanup.sh}"
     "${cmd}" --yes >> "${OUT_DIR}/watchdog.log" 2>&1 || true
     release_cleanup_lock "${wd_me}"

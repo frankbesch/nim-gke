@@ -179,6 +179,8 @@ export D1_STARTED="${TMP_DIR}/d1.started"
   wait || true
 )
 d1_ok=true
+[[ -f "${D1_STARTED}" ]] || d1_ok=false   # the normal-path cleanup really ran
+(( $(grep -c '^cleanup' "${CALLS_LOG}") >= 2 )) || d1_ok=false   # plus the trap retry
 ! grep -q "deadlock" "${OUT4}/phases.log" 2>/dev/null || d1_ok=false
 grep -q "cleanup end (trap)" "${OUT4}/phases.log" 2>/dev/null || d1_ok=false
 [[ ! -d "${OUT4}/.cleanup_lock" ]] || d1_ok=false
