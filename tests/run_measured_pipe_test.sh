@@ -9,6 +9,10 @@
 #   K1  SIGKILL to the runner's whole process group mid-deploy: the
 #       watchdog (own session) survives and cleans up within seconds.
 #   K2  pane-close sequence INT, HUP, KILL to the group: same outcome.
+#   H1  the watchdog fails to start (python3 broken): the runner stops
+#       before deploy, so nothing billable exists without a backstop.
+#   H2  the watchdog is re-parented away from the runner (double fork), so a
+#       terminal that kills the runner's whole process tree misses it.
 #   G1  Ctrl-C on a piped run leaves phases.log ungarbled (no duplicate or
 #       bare-timestamp lines from bash 3.2's failed-write buffer).
 #   D1  Ctrl-C to the process group during the normal end-of-run cleanup:
@@ -240,6 +244,7 @@ run_killed() {  # $1 = label, $2 = "kill" or "pane"
     sleep 1
   done
   grep -q "^cleanup --yes" "${CALLS_LOG}" || ok=false
+  grep -q "WATCHDOG: cleanup done" "${out}/phases.log" 2>/dev/null || ok=false   # the watchdog did it
   [[ "$(head -n1 "${state}")" == "absent" ]] || ok=false
   wd="$(cat "${out}/watchdog.pid" 2>/dev/null || true)"
   sleep 1
@@ -254,6 +259,44 @@ run_killed() {  # $1 = label, $2 = "kill" or "pane"
 }
 run_killed K1 kill
 run_killed K2 pane
+
+# --- H1: watchdog cannot start -> no deploy, non-zero exit ---
+: > "${CALLS_LOG}"
+OUTH1="${TMP_DIR}/outH1"
+mkdir -p "${TMP_DIR}/badpy"
+printf '#!/bin/bash\necho "python3 broken" >&2\nexit 1\n' > "${TMP_DIR}/badpy/python3"
+chmod +x "${TMP_DIR}/badpy/python3"
+set +e
+PATH="${TMP_DIR}/badpy:${PATH}" STUB_CLUSTER=absent RUNNER_DEPLOY="${FAKE_DIR}/ok" \
+  "${RUNNER}" "${OUTH1}" > "${TMP_DIR}/h1.log" 2>&1
+h1_status=$?
+set -e
+if [[ "${h1_status}" -ne 0 ]] && grep -q "WATCHDOG FAILED TO START" "${OUTH1}/phases.log" \
+   && ! grep -q "deploy start" "${OUTH1}/phases.log"; then
+  pass H1
+else
+  fail H1 "status=${h1_status}; deploy must not start without a watchdog"
+  cat "${OUTH1}/phases.log" 2>/dev/null || true
+fi
+
+# --- H2: watchdog is not a descendant of the runner ---
+: > "${CALLS_LOG}"
+OUTH2="${TMP_DIR}/outH2"
+STUB_CLUSTER=absent RUNNER_DEPLOY="${FAKE_DIR}/deploy_long" WATCHDOG_SEC=600 \
+  "${RUNNER}" "${OUTH2}" > /dev/null 2>&1 &
+h2_main=$!
+for _ in $(seq 1 20); do [[ -s "${OUTH2}/watchdog.pid" ]] && break; sleep 0.5; done
+h2_wd="$(cat "${OUTH2}/watchdog.pid" 2>/dev/null || true)"
+h2_ppid="$(ps -p "${h2_wd:-0}" -o ppid= 2>/dev/null | tr -d ' ')"
+kill -TERM "${h2_main}" 2>/dev/null || true
+wait "${h2_main}" 2>/dev/null || true
+if [[ -n "${h2_wd}" && "${h2_ppid}" == "1" ]]; then
+  pass H2
+else
+  fail H2 "watchdog pid=${h2_wd:-none} ppid=${h2_ppid:-none} (want 1)"
+fi
+pkill -f "deploy_long" 2>/dev/null || true
+stop_watchdog "${OUTH2}"
 
 # --- G1: phases.log is clean after Ctrl-C on a piped run (N1's output) ---
 if grep -qE "^[0-9TZ:-]+$|^$" "${OUT1}/phases.log" \
