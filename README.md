@@ -305,13 +305,14 @@ Notes:
   (measured 2026-09-27 from the Google Cloud Billing Catalog API). GCP does
   not price the GPU as a separate line item on this machine type.
 - The system pool (`e2-standard-4`) keeps a minimum of 1 node, and the GKE
-  zonal cluster fee applies, on both the measured and the unmeasured
-  autoscaling path. There is no "$0/hour while idle" state short of
-  deleting the cluster.
-- The autoscaling paths (`deploy_nim_production.sh`, and `deploy_nim_gke.sh`
-  `AUTOSCALE=1` exercised via `run_measured.sh --autoscale`/`--two-nodes`,
-  see `scripts/README.md`) have not been measured; neither has cost or
-  latency numbers here.
+  zonal cluster fee applies, on the fixed and the autoscaling path alike.
+  There is no "$0/hour while idle" state short of deleting the cluster.
+- GPU node autoscaling 0→1→0 is measured (`AUTOSCALE=1`,
+  `run_measured.sh --autoscale`, [run 3](docs/runs/2026-09-28-run-3-autoscale.md)):
+  scale-up from a Pending pod to a Ready L4 node in 1 m 17 s; scale-down to 0
+  nodes 12 m 32 s after replicas=0, of which the GPU node billed idle; about
+  $0.46 for the run at list price. 1→2 (`--two-nodes`) needs GPU quota 2 and
+  is not measured. `deploy_nim_production.sh` remains unmeasured.
 
 ---
 

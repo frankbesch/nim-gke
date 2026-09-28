@@ -350,7 +350,9 @@ on_exit() {
   # external cat, so a dead pipe cannot poison bash's own buffer).
   exec 4>&2
   exec >> "${OUT_DIR}/trap.log" 2>&1 < /dev/null
-  mark "cleanup running -- do not interrupt"
+  if [[ "${CLEANUP_RAN}" != "1" ]]; then
+    mark "cleanup running -- do not interrupt"
+  fi
 
   if [[ -n "${PF_PID}" ]] && kill -0 "${PF_PID}" 2>/dev/null; then
     kill "${PF_PID}" 2>/dev/null || true
