@@ -1,6 +1,27 @@
 #!/bin/bash
-# Stub kubectl for cleanup_test.sh. Never touches the network.
+# Stub kubectl for cleanup_test.sh and run_measured_test.sh. Never touches the network.
 set -euo pipefail
 
 echo "kubectl $*" >> "${STUB_LOG}"
+
+# run_measured_test.sh: `kubectl get pod NAME -n NS -o jsonpath=...ready...`
+# and `kubectl get pod NAME -n NS -o json`. STUB_POD_READY (default true)
+# controls the readiness value; unrelated to cleanup_test.sh, which never
+# calls `get pod`.
+if [[ "${1:-}" == "get" && "${2:-}" == "pod" ]]; then
+  if [[ "$*" == *"jsonpath"* ]]; then
+    echo "${STUB_POD_READY:-true}"
+  elif [[ "$*" == *"-o json"* ]]; then
+    echo '{"status":{"containerStatuses":[{"ready":'"${STUB_POD_READY:-true}"'}]}}'
+  fi
+  exit 0
+fi
+
+# run_measured_test.sh: `kubectl port-forward ...` blocks like the real
+# thing until killed; run_measured.sh backgrounds it and kills it itself.
+if [[ "${1:-}" == "port-forward" ]]; then
+  echo "Forwarding from 127.0.0.1:8000 -> 8000"
+  while :; do sleep 1; done
+fi
+
 exit 0

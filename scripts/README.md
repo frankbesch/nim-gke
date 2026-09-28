@@ -105,6 +105,46 @@ export PROJECT_ID='your-gcp-project'
 
 ## Testing Scripts
 
+### `run_measured.sh`
+
+**Purpose**: End-to-end measured-run runner: preflight -> deploy -> wait for
+pod Ready -> save pod info -> port-forward -> bench -> cleanup -> final
+checks. Rebuilt from the ad hoc 2026-09-27 run script with a timeout on the
+Ready wait and a trap that always tears down, even on a failed deploy.
+
+**Spends money**: creates a real GKE cluster with a GPU node pool. Always
+run it somewhere you can watch, and expect it to bill for the run's
+duration.
+
+**Usage**:
+```bash
+export NGC_API_KEY='your-key'   # NGC_CLI_API_KEY accepted as a fallback
+export PROJECT_ID='your-gcp-project'
+./scripts/run_measured.sh OUT_DIR
+```
+
+**What it creates** (all under `OUT_DIR`): `phases.log` (UTC-timestamped
+phase marks), `preflight.log`, `deploy.log`, `pod.json`, `pod.log`,
+`port-forward.log`, `bench.log`, `bench.json`, `cleanup.log`,
+`operations.txt`, `final-clusters.txt`, `final-disks.txt`,
+`watchdog.pid`, and `watchdog.log` if the watchdog fires.
+
+**Safety net**:
+- An `EXIT`/`INT`/`TERM` trap runs exactly once: kills the port-forward,
+  runs `cleanup.sh --yes` if cleanup did not already succeed in the normal
+  path, records final cluster/disk/operations state, and fails the run if
+  the cluster or any `pvc-`/cluster-named disk is still present.
+- A background watchdog (default 60 min, `WATCHDOG_SEC`) is a backstop:
+  if the run is killed outright, it runs `cleanup.sh --yes` once the
+  timer expires and the cluster still exists. The trap stops the watchdog
+  on every exit.
+- The Ready wait has a timeout (default 30 min, `READY_TIMEOUT_SEC`); it no
+  longer spins forever once a cluster is gone.
+
+**Reserved**: `--autoscale` is not implemented yet (exits 2 if passed).
+
+---
+
 ### `test_nim.sh`
 
 **Purpose**: Basic functionality test (health check, model list, single inference).

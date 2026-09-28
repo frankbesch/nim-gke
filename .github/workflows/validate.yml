@@ -23,7 +23,9 @@ jobs:
           find tests/ -name "*.sh" -print0 | xargs -0 shellcheck -x -S warning
 
       - name: Run script tests
-        run: bash tests/cleanup_test.sh
+        run: |
+          bash tests/cleanup_test.sh
+          bash tests/run_measured_test.sh
 
       - name: Check script permissions
         run: |

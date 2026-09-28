@@ -29,9 +29,15 @@ esac
 
 case "$1 $2" in
   "compute disks")
-    # `gcloud compute disks list ...`: no leftover disks.
+    # `gcloud compute disks list ...`: prints STUB_DISKS_OUTPUT if set
+    # (run_measured_test.sh uses this to simulate a leftover disk); no
+    # output by default, i.e. no leftover disks.
+    if [[ -n "${STUB_DISKS_OUTPUT:-}" ]]; then
+      echo "${STUB_DISKS_OUTPUT}"
+    fi
     exit 0
     ;;
 esac
 
+# `gcloud container operations list ...` (run_measured.sh): no output needed.
 exit 0
