@@ -19,7 +19,18 @@ case "$1 $2 $3" in
     exit 0
     ;;
   "container clusters list")
-    # Prints nothing: no cluster with that name elsewhere.
+    # STUB_CLUSTERS_LIST_EXIT (default 0): non-zero simulates the list call
+    # itself failing (E6: final check cannot verify teardown).
+    # STUB_CLUSTERS_LIST_OUTPUT: printed as output when set, e.g. to
+    # simulate the cluster still being listed after a failed cleanup (E5).
+    # Default: prints nothing, i.e. no cluster with that name anywhere.
+    if [[ "${STUB_CLUSTERS_LIST_EXIT:-0}" != "0" ]]; then
+      echo "ERROR: (gcloud.container.clusters.list) stub simulated failure" >&2
+      exit "${STUB_CLUSTERS_LIST_EXIT}"
+    fi
+    if [[ -n "${STUB_CLUSTERS_LIST_OUTPUT:-}" ]]; then
+      echo "${STUB_CLUSTERS_LIST_OUTPUT}"
+    fi
     exit 0
     ;;
   "container clusters delete")
@@ -41,9 +52,14 @@ esac
 
 case "$1 $2" in
   "compute disks")
-    # `gcloud compute disks list ...`: prints STUB_DISKS_OUTPUT if set
-    # (run_measured_test.sh uses this to simulate a leftover disk); no
-    # output by default, i.e. no leftover disks.
+    # `gcloud compute disks list ...`: STUB_DISKS_LIST_EXIT (default 0)
+    # non-zero simulates the list call itself failing. Otherwise prints
+    # STUB_DISKS_OUTPUT if set (run_measured_test.sh uses this to simulate
+    # a leftover disk); no output by default, i.e. no leftover disks.
+    if [[ "${STUB_DISKS_LIST_EXIT:-0}" != "0" ]]; then
+      echo "ERROR: (gcloud.compute.disks.list) stub simulated failure" >&2
+      exit "${STUB_DISKS_LIST_EXIT}"
+    fi
     if [[ -n "${STUB_DISKS_OUTPUT:-}" ]]; then
       echo "${STUB_DISKS_OUTPUT}"
     fi

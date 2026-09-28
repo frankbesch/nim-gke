@@ -74,6 +74,12 @@ reset_logs() {
   : > "${CALLS_LOG}"
   unset FAKE_PREFLIGHT_EXIT FAKE_DEPLOY_EXIT FAKE_BENCH_EXIT FAKE_CLEANUP_EXIT
   unset STUB_POD_READY STUB_DISKS_OUTPUT
+  # S5b: the trap cleanup path now confirms teardown via `gcloud container
+  # clusters describe` (cluster_exists(), used by cleanup_with_retry)
+  # before declaring cleanup done; default to absent so these tests (which
+  # never exercised describe before) don't hang retrying against the
+  # stub's previous default "describe succeeds" behavior.
+  export STUB_CLUSTER=absent
 }
 
 cleanup_call_count() {
@@ -190,7 +196,19 @@ set -e
 r4_pass=true
 [[ "${r4_status}" -ne 0 ]] || r4_pass=false
 echo "${r4_out}" | grep -q "pvc-abc123def" || r4_pass=false
-WATCHDOG_LEFTOVER+="$(check_watchdog_gone "${OUT4}")"
+# S5b (B1): a final check that finds a leftover disk is not a clean
+# teardown, so on_exit now intentionally leaves the watchdog armed
+# (previously it always disarmed it) and prints a banner instead. Assert
+# that here rather than in the shared "watchdog gone" check below, then
+# tear the watchdog down explicitly so it doesn't leak past this test.
+echo "${r4_out}" | grep -q "WATCHDOG LEFT ARMED" || r4_pass=false
+r4_wd_pid=""
+if [[ -f "${OUT4}/watchdog.pid" ]]; then
+  r4_wd_pid="$(cat "${OUT4}/watchdog.pid")"
+  kill -0 "${r4_wd_pid}" 2>/dev/null || r4_pass=false
+else
+  r4_pass=false
+fi
 
 if [[ "${r4_pass}" == "true" ]]; then
   echo "R4 PASS"
@@ -198,6 +216,12 @@ else
   echo "R4 FAIL (status=${r4_status})"
   echo "--- output ---"; echo "${r4_out}"
   FAIL=1
+fi
+
+if [[ -n "${r4_wd_pid}" ]]; then
+  touch "${OUT4}/.watchdog_stop" 2>/dev/null || true
+  kill "${r4_wd_pid}" 2>/dev/null || true
+  wait "${r4_wd_pid}" 2>/dev/null || true
 fi
 
 # --- R5: missing PROJECT_ID / missing OUT_DIR ---

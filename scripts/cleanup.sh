@@ -122,19 +122,28 @@ for pv in json.load(sys.stdin).get("items", []):
     if (pv.get("spec", {}).get("claimRef") or {}).get("namespace") == sys.argv[1]:
         print(pv["metadata"]["name"])' "$1"
 }
-pvs="$(kubectl get pv -o json 2>/dev/null | pvs_in_namespace "${NIM_NAMESPACE}" || true)"
-
 echo "⏳ Waiting for NIM pods to terminate..."
 kubectl wait --for=delete pod --all -n "${NIM_NAMESPACE}" --timeout=300s || echo "  (pods still terminating; continuing)"
 
 echo "🧹 Deleting PVCs (if present)..."
 kubectl delete pvc --all -n "${NIM_NAMESPACE}" || echo "  (no PVCs to delete)"
 
-if [[ -n "${pvs}" ]]; then
-  echo "⏳ Waiting for persistent volumes (and their disks) to be deleted..."
-  for pv in ${pvs}; do
-    kubectl wait --for=delete "pv/${pv}" --timeout=300s || echo "  ⚠️  ${pv} not deleted in 5 min; the disk check below will catch it"
-  done
+# Re-list PVs whose claimRef is in this namespace after the delete (rather
+# than trusting a pre-delete snapshot, which races the CSI driver: a PV
+# created or still finalizing between the snapshot and the delete would be
+# missed) and poll in a bounded loop until none remain.
+echo "⏳ Waiting for persistent volumes (and their disks) to be deleted..."
+pv_wait_start=${SECONDS}
+remaining_pvs=""
+while (( SECONDS - pv_wait_start < 300 )); do
+  remaining_pvs="$(kubectl get pv -o json 2>/dev/null | pvs_in_namespace "${NIM_NAMESPACE}" || true)"
+  [[ -z "${remaining_pvs}" ]] && break
+  sleep 5
+done
+remaining_pvs="$(kubectl get pv -o json 2>/dev/null | pvs_in_namespace "${NIM_NAMESPACE}" || true)"
+if [[ -n "${remaining_pvs}" ]]; then
+  echo "  ⚠️  PV(s) not deleted in 5 min; the disk check below will catch it:"
+  echo "${remaining_pvs}"
 fi
 
 echo ""
@@ -154,8 +163,8 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 echo ""
 
 # --- Check for leftover disks; do not auto-delete ---
-echo "🔍 Checking for leftover persistent disks in project ${PROJECT_ID}..."
-if ! leftover_disks="$(gcloud compute disks list --project="${PROJECT_ID}" --format="value(name,zone)")"; then
+echo "🔍 Checking for leftover persistent disks in ${PROJECT_ID}/${ZONE}..."
+if ! leftover_disks="$(gcloud compute disks list --project="${PROJECT_ID}" --filter="zone~${ZONE}\$" --format="value(name,zone)")"; then
   echo "❗ Could not list disks; check the console for leftover disks (they bill)." >&2
   exit 1
 fi
@@ -164,11 +173,17 @@ if [[ -n "${leftover_disks}" ]]; then
   if [[ -n "${suspect_disks}" ]]; then
     echo "⚠️  WARNING: possible leftover disks related to this cluster (not deleted automatically):"
     echo "${suspect_disks}"
+    echo ""
+    echo "  Review each disk above, then delete manually if unneeded:"
+    while IFS=$'\t' read -r d_name d_zone; do
+      [[ -z "${d_name}" ]] && continue
+      echo "    gcloud compute disks delete ${d_name} --zone ${d_zone} --project ${PROJECT_ID}"
+    done <<< "${suspect_disks}"
   else
-    echo "✅ No disks matching cluster name or 'pvc-' found"
+    echo "✅ No disks matching cluster name or 'pvc-' found in ${ZONE}"
   fi
 else
-  echo "✅ No disks found in project ${PROJECT_ID}"
+  echo "✅ No disks found in ${PROJECT_ID}/${ZONE}"
 fi
 
 echo ""

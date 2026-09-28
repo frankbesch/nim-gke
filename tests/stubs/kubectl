@@ -4,12 +4,47 @@ set -euo pipefail
 
 echo "kubectl $*" >> "${STUB_LOG}"
 
+# S5b reliability tests: `kubectl scale statefulset/... --replicas=0`, run
+# with STUB_KUBECTL_FAIL_AFTER_SCALE set, arms a failure flag file *after*
+# logging this call (so the scale command itself still succeeds) so every
+# later kubectl call fails -- simulates the API/cluster dying mid
+# scale-down wait (E2).
+STUB_KUBECTL_FAIL_FLAG="${STUB_KUBECTL_FAIL_FLAG_FILE:-${STUB_LOG}.kubectl_fail}"
+if [[ "${1:-}" == "scale" && -n "${STUB_KUBECTL_FAIL_AFTER_SCALE:-}" ]]; then
+  touch "${STUB_KUBECTL_FAIL_FLAG}"
+fi
+
+# STUB_KUBECTL_FAIL_AFTER=N: this and every prior call succeed; the (N+1)th
+# and every later call fails outright (dead API simulation), counted via a
+# small counter file. Independent of the flag-file mechanism above.
+if [[ -n "${STUB_KUBECTL_FAIL_AFTER:-}" ]]; then
+  cnt_file="${STUB_KUBECTL_CALL_COUNT_FILE:-${STUB_LOG}.kubectl_count}"
+  n=0
+  [[ -f "${cnt_file}" ]] && n="$(cat "${cnt_file}")"
+  n=$((n + 1))
+  echo "${n}" > "${cnt_file}"
+  if (( n > STUB_KUBECTL_FAIL_AFTER )); then
+    echo "kubectl: stub simulated failure (call ${n})" >&2
+    exit 1
+  fi
+fi
+
+if [[ -f "${STUB_KUBECTL_FAIL_FLAG}" && "${1:-}" != "scale" ]]; then
+  echo "kubectl: stub simulated failure (API down)" >&2
+  exit 1
+fi
+
 # run_measured_autoscale_test.sh: `kubectl get nodes -l
 # cloud.google.com/gke-accelerator --no-headers`. STUB_GPU_NODE_SEQ_FILE, if
 # set, names a file with one GPU-node-count per line; each call here returns
 # the next count (clamped to the last line once exhausted) so a test can
 # script a deterministic 0 -> 1 -> 2 -> 0 sequence. Unset/absent: 0 nodes.
-if [[ "${1:-}" == "get" && "${2:-}" == "nodes" && "$*" == *"cloud.google.com/gke-accelerator"* ]]; then
+# STUB_GPU_NODE_STATUS (default Ready) is the STATUS column on every
+# synthesized node line, e.g. NotReady to test the "present regardless of
+# STATUS" scale-to-0 counting. Matching requires --no-headers so the
+# separate `-o custom-columns=...` evidence query (S5b M7) falls through
+# instead of consuming a sequence-file slot.
+if [[ "${1:-}" == "get" && "${2:-}" == "nodes" && "$*" == *"cloud.google.com/gke-accelerator"* && "$*" == *"--no-headers"* ]]; then
   count=0
   if [[ -n "${STUB_GPU_NODE_SEQ_FILE:-}" && -f "${STUB_GPU_NODE_SEQ_FILE}" ]]; then
     total_lines="$(wc -l < "${STUB_GPU_NODE_SEQ_FILE}" | tr -d ' ')"
@@ -22,9 +57,10 @@ if [[ "${1:-}" == "get" && "${2:-}" == "nodes" && "$*" == *"cloud.google.com/gke
     count="$(sed -n "${idx}p" "${STUB_GPU_NODE_SEQ_FILE}")"
     echo $((idx + 1)) > "${idx_file}"
   fi
+  status="${STUB_GPU_NODE_STATUS:-Ready}"
   i=0
   while (( i < count )); do
-    echo "gpu-node-${i} Ready <none> 1m v1.30"
+    echo "gpu-node-${i} ${status} <none> 1m v1.30"
     i=$((i + 1))
   done
   exit 0

@@ -84,6 +84,12 @@ reset_logs() {
   : > "${CALLS_LOG}"
   unset STUB_GPU_NODE_SEQ_FILE MAX_GPU_NODES SCALE_UP_TIMEOUT_SEC SCALE_DOWN_TIMEOUT_SEC
   export RUNNER_DEPLOY="${FAKE_DIR}/fake_deploy"
+  # S5b: the trap cleanup path now confirms teardown via `gcloud container
+  # clusters describe` (cluster_exists(), used by cleanup_with_retry)
+  # before declaring cleanup done; default to absent so these tests (which
+  # never exercised describe before) don't hang retrying against the
+  # stub's previous default "describe succeeds" behavior.
+  export STUB_CLUSTER=absent
 }
 
 cleanup_call_count() {
