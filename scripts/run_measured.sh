@@ -137,7 +137,15 @@ CLEANUP_RETRY_SEC="${CLEANUP_RETRY_SEC:-1200}"
 OPS_WAIT_SEC="${OPS_WAIT_SEC:-60}"
 
 ts() { date -u +%FT%TZ; }
-mark() { echo "$(ts) $1" | tee -a "${OUT_DIR}/phases.log"; }
+# phases.log first, then best-effort stdout: after Ctrl-C the reader of a
+# `| tee run.log` pipe is gone, and a failed stdout write must never abort
+# teardown.
+mark() {
+  local line
+  line="$(ts) $1"
+  echo "${line}" >> "${OUT_DIR}/phases.log"
+  echo "${line}" 2>/dev/null || true
+}
 RUN_START_TS="$(ts)"
 
 # Count Ready nodes carrying the GKE accelerator label (i.e. GPU nodes).
@@ -245,11 +253,18 @@ WATCHDOG_STOP="${OUT_DIR}/.watchdog_stop"
 CLEANUP_RAN=0
 MAIN_PID=$$
 
-run_cleanup_once() {
-  # Runs scripts/cleanup.sh --yes (or RUNNER_CLEANUP) and tees to
-  # OUT_DIR/cleanup.log. Callers decide whether to call this at all.
+run_cleanup_once() {  # $1 = "trap" to log to file only
+  # Runs scripts/cleanup.sh --yes (or RUNNER_CLEANUP), appending to
+  # OUT_DIR/cleanup.log. In the trap, stdout may be a dead pipe or a closed
+  # terminal; cleanup.sh runs with set -e, so a failed echo there would
+  # abort the teardown. The trap therefore writes to the file only.
   local cmd="${RUNNER_CLEANUP:-${SCRIPT_DIR}/cleanup.sh}"
-  "${cmd}" --yes 2>&1 | tee "${OUT_DIR}/cleanup.log"
+  if [[ "${1:-}" == "trap" ]]; then
+    "${cmd}" --yes >> "${OUT_DIR}/cleanup.log" 2>&1
+    return
+  fi
+  "${cmd}" --yes 2>&1 | tee -a "${OUT_DIR}/cleanup.log"
+  return "${PIPESTATUS[0]}"
 }
 
 # Runs cleanup, retrying (bounded by CLEANUP_RETRY_SEC) as long as the
@@ -261,7 +276,7 @@ cleanup_with_retry() {
   while true; do
     attempt=$((attempt + 1))
     mark "cleanup attempt ${attempt} start"
-    if run_cleanup_once; then
+    if run_cleanup_once trap; then
       mark "cleanup attempt ${attempt} end (ok)"
     else
       mark "cleanup attempt ${attempt} end (failed)"
@@ -281,8 +296,10 @@ on_exit() {
   local exit_status=$?
   # Ignore further interrupts once cleanup is underway: a second Ctrl-C or
   # a watchdog TERM must not kill this trap mid-teardown and leave the
-  # cluster half-deleted.
-  trap '' INT TERM HUP
+  # cluster half-deleted. PIPE and set +e: stdout may be a dead pipe or a
+  # closed terminal, and no failed write may stop the teardown.
+  set +e
+  trap '' INT TERM HUP PIPE
   mark "cleanup running -- do not interrupt"
 
   if [[ -n "${PF_PID}" ]] && kill -0 "${PF_PID}" 2>/dev/null; then
@@ -292,6 +309,11 @@ on_exit() {
 
   acquire_cleanup_lock
   local final_status="${exit_status}"
+  # Any exit that did not reach the success line (e.g. a runtime syntax
+  # error, which can leave $? at 0) is a failure.
+  if [[ "${RUN_OK:-0}" != "1" && "${final_status}" == "0" ]]; then
+    final_status=1
+  fi
   if [[ "${CLEANUP_RAN}" != "1" ]]; then
     mark "cleanup start (trap)"
     if cleanup_with_retry; then
@@ -314,12 +336,15 @@ on_exit() {
   gcloud compute disks list --project="${PROJECT_ID}" --filter="zone~${ZONE}\$" \
     > "${OUT_DIR}/final-disks.txt" 2>&1 || disks_list_status=$?
 
-  local verify_clean=1
+  local verify_clean=1 cluster_gone=1
   if (( clusters_list_status != 0 )); then
+    cluster_gone=0
     echo "ERROR: could not verify cluster teardown (clusters list failed)" >&2
     final_status=1
     verify_clean=0
-  elif grep -qw "${CLUSTER_NAME}" "${OUT_DIR}/final-clusters.txt" 2>/dev/null; then
+  elif grep -qw "${CLUSTER_NAME}" "${OUT_DIR}/final-clusters.txt" 2>/dev/null || cluster_exists; then
+    # Gone means both the list and a NOT_FOUND describe agree.
+    cluster_gone=0
     echo "ERROR: cluster ${CLUSTER_NAME} still present after cleanup" >&2
     final_status=1
     verify_clean=0
@@ -344,7 +369,10 @@ on_exit() {
     verify_clean=0
   fi
 
-  if [[ "${verify_clean}" == "1" ]]; then
+  # The watchdog can only delete a cluster, so it stays armed only while the
+  # cluster may still exist. Leftover disks get the manual banner instead; an
+  # armed watchdog outliving a gone cluster could delete the next run's.
+  if [[ "${cluster_gone}" == "1" ]]; then
     if [[ -n "${WATCHDOG_PID}" ]]; then
       touch "${WATCHDOG_STOP}" 2>/dev/null || true
       for _ in 1 2 3; do
@@ -354,9 +382,14 @@ on_exit() {
       kill "${WATCHDOG_PID}" 2>/dev/null || true
       wait "${WATCHDOG_PID}" 2>/dev/null || true
     fi
-  else
+  fi
+  if [[ "${verify_clean}" != "1" ]]; then
     echo "============================================================" >&2
-    echo "CLEANUP COULD NOT VERIFY A CLEAN TEARDOWN. WATCHDOG LEFT ARMED." >&2
+    if [[ "${cluster_gone}" == "1" ]]; then
+      echo "CLEANUP COULD NOT VERIFY A CLEAN TEARDOWN (cluster gone; watchdog stopped)." >&2
+    else
+      echo "CLEANUP COULD NOT VERIFY A CLEAN TEARDOWN. WATCHDOG LEFT ARMED." >&2
+    fi
     echo "Manual action may be required:" >&2
     echo "  gcloud container clusters delete ${CLUSTER_NAME} --zone=${ZONE} --project=${PROJECT_ID} --quiet" >&2
     echo "  gcloud compute disks delete <DISK_NAME> --zone=${ZONE} --project=${PROJECT_ID}" >&2
@@ -391,16 +424,22 @@ trap 'exit 129' HUP
 rm -f "${WATCHDOG_STOP}"
 (
   # Survive a closed terminal: the runner cleans up on HUP, but if it dies
-  # without cleaning up, this is the backstop.
+  # without cleaning up, this is the backstop. It never needs the NGC key.
   trap '' HUP
+  unset NGC_API_KEY NGC_CLI_API_KEY
   wd_start=${SECONDS}
   while (( SECONDS - wd_start < WATCHDOG_SEC )); do
     [[ -f "${WATCHDOG_STOP}" ]] && exit 0
     sleep 1
   done
   [[ -f "${WATCHDOG_STOP}" ]] && exit 0
-  echo "$(ts) WATCHDOG FIRED: sending TERM to main (pid ${MAIN_PID})" >> "${OUT_DIR}/phases.log"
-  kill -TERM "${MAIN_PID}" 2>/dev/null || true
+  # Signal main only if that pid is still this runner (pids get reused).
+  if ps -p "${MAIN_PID}" -o command= 2>/dev/null | grep -q "run_measured"; then
+    echo "$(ts) WATCHDOG FIRED: sending TERM to main (pid ${MAIN_PID})" >> "${OUT_DIR}/phases.log"
+    kill -TERM "${MAIN_PID}" 2>/dev/null || true
+  else
+    echo "$(ts) WATCHDOG FIRED: main (pid ${MAIN_PID}) already gone" >> "${OUT_DIR}/phases.log"
+  fi
   grace_start=${SECONDS}
   while (( SECONDS - grace_start < 120 )); do
     kill -0 "${MAIN_PID}" 2>/dev/null || break
@@ -408,6 +447,16 @@ rm -f "${WATCHDOG_STOP}"
     sleep 1
   done
   [[ -f "${WATCHDOG_STOP}" ]] && exit 0
+  # Touch only the cluster this run created: compare createTime recorded
+  # after deploy with the live one (a later run may reuse CLUSTER_NAME).
+  recorded_ct="$(cat "${OUT_DIR}/cluster-create-time" 2>/dev/null || true)"
+  if [[ -n "${recorded_ct}" ]]; then
+    live_ct="$(gcloud container clusters describe "${CLUSTER_NAME}" --zone="${ZONE}" --project="${PROJECT_ID}" --format="value(createTime)" 2>/dev/null || true)"
+    if [[ -n "${live_ct}" && "${live_ct}" != "${recorded_ct}" ]]; then
+      echo "$(ts) WATCHDOG: ${CLUSTER_NAME} is a different cluster (created ${live_ct}, ours ${recorded_ct}); not touching it" >> "${OUT_DIR}/phases.log"
+      exit 0
+    fi
+  fi
   if cluster_exists; then
     echo "$(ts) WATCHDOG: cluster ${CLUSTER_NAME} still exists after waiting for main; running cleanup" >> "${OUT_DIR}/phases.log"
     acquire_cleanup_lock
@@ -430,9 +479,11 @@ mark "deploy start"
 DEPLOY_CMD="${RUNNER_DEPLOY:-${SCRIPT_DIR}/deploy_nim_gke.sh}"
 "${DEPLOY_CMD}" 2>&1 | tee "${OUT_DIR}/deploy.log"
 mark "deploy end"
+gcloud container clusters describe "${CLUSTER_NAME}" --zone="${ZONE}" --project="${PROJECT_ID}" \
+  --format="value(createTime)" > "${OUT_DIR}/cluster-create-time" 2>/dev/null || true
 
-# The NGC key has done its job (deploy consumed it); do not let bench,
-# port-forward, or the watchdog inherit it.
+# The NGC key has done its job (deploy consumed it); do not let bench or
+# port-forward inherit it. (The watchdog unsets it itself.)
 unset NGC_API_KEY NGC_CLI_API_KEY || true
 
 if [[ "${AUTOSCALE:-0}" == "1" ]]; then
@@ -452,7 +503,7 @@ if [[ "${AUTOSCALE:-0}" == "1" ]]; then
   fi
   mark "gpu node 1 Ready"
   kubectl get nodes -l cloud.google.com/gke-accelerator \
-    -o custom-columns=NAME:.metadata.name,CREATED:.metadata.creationTimestamp,STATUS:.status.conditions[-1].type \
+    -o 'custom-columns=NAME:.metadata.name,CREATED:.metadata.creationTimestamp,READY:.status.conditions[?(@.type=="Ready")].status' \
     > "${OUT_DIR}/gpu-nodes-0to1.txt" 2>&1 || true
 fi
 
@@ -535,7 +586,8 @@ if [[ "${AUTOSCALE:-0}" == "1" ]]; then
 
   # Cluster-autoscaler-visibility log for this run; failure here must not
   # abort the run (evidence-gathering only).
-  autoscaler_filter="resource.type=\"k8s_cluster\" AND resource.labels.cluster_name=\"${CLUSTER_NAME}\" AND resource.labels.location=\"${ZONE}\" AND logName=\"projects/${PROJECT_ID}/logs/container.googleapis.com%2Fcluster-autoscaler-visibility\" AND timestamp>=\"${RUN_START_TS}\""
+  # Documented query form (cloud.google.com/kubernetes-engine/docs/how-to/cluster-autoscaler-visibility).
+  autoscaler_filter="resource.type=\"k8s_cluster\" AND resource.labels.cluster_name=\"${CLUSTER_NAME}\" AND log_id(\"container.googleapis.com/cluster-autoscaler-visibility\") AND timestamp>=\"${RUN_START_TS}\""
   if gcloud logging read "${autoscaler_filter}" --project="${PROJECT_ID}" --format=json \
       > "${OUT_DIR}/autoscaler.json" 2>"${OUT_DIR}/autoscaler.err"; then
     scale_up_count="$(grep -c 'scaleUp' "${OUT_DIR}/autoscaler.json" 2>/dev/null || true)"
@@ -548,13 +600,17 @@ if [[ "${AUTOSCALE:-0}" == "1" ]]; then
 fi
 
 mark "cleanup start"
+acquire_cleanup_lock
 if run_cleanup_once; then
+  release_cleanup_lock
   CLEANUP_RAN=1
 else
+  release_cleanup_lock
   mark "cleanup FAILED; retrying in trap"
   exit 1
 fi
 mark "cleanup end"
 
+RUN_OK=1
 echo "Run complete. Logs in ${OUT_DIR}."
 exit 0

@@ -196,16 +196,16 @@ set -e
 r4_pass=true
 [[ "${r4_status}" -ne 0 ]] || r4_pass=false
 echo "${r4_out}" | grep -q "pvc-abc123def" || r4_pass=false
-# S5b (B1): a final check that finds a leftover disk is not a clean
-# teardown, so on_exit now intentionally leaves the watchdog armed
-# (previously it always disarmed it) and prints a banner instead. Assert
-# that here rather than in the shared "watchdog gone" check below, then
-# tear the watchdog down explicitly so it doesn't leak past this test.
-echo "${r4_out}" | grep -q "WATCHDOG LEFT ARMED" || r4_pass=false
+# A leftover disk is not a clean teardown (banner, non-zero exit), but the
+# cluster is gone, so the watchdog is stopped: it can only delete clusters,
+# and an armed watchdog could hit a later run's same-name cluster (review
+# round 2; see tests/run_measured_pipe_test.sh N2a).
+echo "${r4_out}" | grep -q "cluster gone; watchdog stopped" || r4_pass=false
 r4_wd_pid=""
 if [[ -f "${OUT4}/watchdog.pid" ]]; then
   r4_wd_pid="$(cat "${OUT4}/watchdog.pid")"
-  kill -0 "${r4_wd_pid}" 2>/dev/null || r4_pass=false
+  sleep 1
+  ! kill -0 "${r4_wd_pid}" 2>/dev/null || r4_pass=false
 else
   r4_pass=false
 fi

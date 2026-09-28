@@ -12,6 +12,20 @@ esac
 
 case "$1 $2 $3" in
   "container clusters describe")
+    # STUB_CLUSTER_STATE_FILE: first line "absent" means NOT_FOUND; any other
+    # line is the cluster's createTime (printed for --format=value(createTime)).
+    # Lets a test change the cluster's state mid-run.
+    if [[ -n "${STUB_CLUSTER_STATE_FILE:-}" ]]; then
+      state="$(head -n1 "${STUB_CLUSTER_STATE_FILE}" 2>/dev/null || echo absent)"
+      if [[ "${state}" == "absent" ]]; then
+        echo "ERROR: (gcloud.container.clusters.describe) ResponseError: code=404, message=Not found: NOT_FOUND" >&2
+        exit 1
+      fi
+      if [[ "$*" == *createTime* ]]; then
+        echo "${state}"
+      fi
+      exit 0
+    fi
     if [[ "${STUB_CLUSTER:-}" == "absent" ]]; then
       echo "ERROR: (gcloud.container.clusters.describe) ResponseError: code=404, message=Not found: NOT_FOUND" >&2
       exit 1
