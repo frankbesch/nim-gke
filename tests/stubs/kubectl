@@ -1,0 +1,6 @@
+#!/bin/bash
+# Stub kubectl for cleanup_test.sh. Never touches the network.
+set -euo pipefail
+
+echo "kubectl $*" >> "${STUB_LOG}"
+exit 0

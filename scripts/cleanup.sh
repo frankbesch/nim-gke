@@ -8,6 +8,25 @@ set -euo pipefail
 
 source "$(dirname "${BASH_SOURCE[0]}")/config.env"
 
+SKIP_PROMPT=false
+for arg in "$@"; do
+  case "$arg" in
+    --yes|-y)
+      SKIP_PROMPT=true
+      ;;
+    -h|--help)
+      echo "Usage: $0 [--yes|-y] [-h|--help]"
+      echo "  --yes, -y   Skip the confirmation prompt (for scripted runs)"
+      echo "  -h, --help  Show this help and exit"
+      exit 0
+      ;;
+    *)
+      echo "Usage: $0 [--yes|-y] [-h|--help]" >&2
+      exit 2
+      ;;
+  esac
+done
+
 require_project_id
 
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -25,11 +44,19 @@ echo "   - Load balancers"
 echo "   - Persistent storage"
 echo ""
 
-read -p "🤔 Are you sure you want to delete the cluster? (yes/no): " CONFIRM
+if [[ "${SKIP_PROMPT}" == "true" ]]; then
+  echo "🤔 --yes passed; skipping confirmation prompt."
+else
+  if [[ ! -t 0 ]]; then
+    echo "refusing to delete without confirmation: no terminal; pass --yes" >&2
+    exit 1
+  fi
+  read -p "🤔 Are you sure you want to delete the cluster? (yes/no): " CONFIRM
 
-if [[ "${CONFIRM}" != "yes" ]]; then
-  echo "❌ Cleanup cancelled"
-  exit 0
+  if [[ "${CONFIRM}" != "yes" ]]; then
+    echo "❌ Cleanup cancelled"
+    exit 0
+  fi
 fi
 
 echo ""

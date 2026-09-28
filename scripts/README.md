@@ -192,6 +192,12 @@ python3 scripts/bench.py
 ./scripts/cleanup.sh
 ```
 
+Prompts for confirmation unless stdin is not a terminal. For scripted runs,
+skip the prompt:
+```bash
+./scripts/cleanup.sh --yes
+```
+
 **Order of operations**:
 1. Uninstalls the Helm release
 2. Deletes the PVC

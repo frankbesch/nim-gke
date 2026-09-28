@@ -1,0 +1,37 @@
+#!/bin/bash
+# Stub gcloud for cleanup_test.sh. Never touches the network.
+set -euo pipefail
+
+echo "gcloud $*" >> "${STUB_LOG}"
+
+case "$1 $2" in
+  "projects describe")
+    exit 0
+    ;;
+esac
+
+case "$1 $2 $3" in
+  "container clusters describe")
+    if [[ "${STUB_CLUSTER:-}" == "absent" ]]; then
+      echo "ERROR: (gcloud.container.clusters.describe) ResponseError: code=404, message=Not found: NOT_FOUND" >&2
+      exit 1
+    fi
+    exit 0
+    ;;
+  "container clusters list")
+    # Prints nothing: no cluster with that name elsewhere.
+    exit 0
+    ;;
+  "container clusters delete")
+    exit 0
+    ;;
+esac
+
+case "$1 $2" in
+  "compute disks")
+    # `gcloud compute disks list ...`: no leftover disks.
+    exit 0
+    ;;
+esac
+
+exit 0

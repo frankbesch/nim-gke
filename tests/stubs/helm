@@ -1,0 +1,6 @@
+#!/bin/bash
+# Stub helm for cleanup_test.sh. Never touches the network.
+set -euo pipefail
+
+echo "helm $*" >> "${STUB_LOG}"
+exit 0
