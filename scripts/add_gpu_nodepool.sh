@@ -12,6 +12,15 @@ set -euo pipefail
 
 # --- Configuration ---
 source "$(dirname "${BASH_SOURCE[0]}")/config.env"
+
+ASSUME_YES=false
+for arg in "$@"; do
+  case "$arg" in
+    --yes|-y) ASSUME_YES=true ;;
+    -h|--help) echo "Usage: $0 [--yes|-y]  (--yes deletes and recreates an existing gpupool without asking)"; exit 0 ;;
+    *) echo "Usage: $0 [--yes|-y]" >&2; exit 2 ;;
+  esac
+done
 require_project_id
 
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -39,7 +48,14 @@ echo ""
 if gcloud container node-pools describe gpupool --cluster="${CLUSTER_NAME}" --zone="${ZONE}" --project="${PROJECT_ID}" &> /dev/null; then
   echo "⚠️  GPU node pool 'gpupool' already exists"
   echo ""
-  read -p "Delete and recreate? (yes/no): " RECREATE
+  if [[ "${ASSUME_YES}" == "true" ]]; then
+    RECREATE=yes
+  elif [[ ! -t 0 ]]; then
+    echo "refusing to delete gpupool without confirmation: no terminal; pass --yes" >&2
+    exit 1
+  else
+    read -p "Delete and recreate? (yes/no): " RECREATE
+  fi
   if [[ "${RECREATE}" == "yes" ]]; then
     echo "🗑️  Deleting existing GPU node pool..."
     gcloud container node-pools delete gpupool \

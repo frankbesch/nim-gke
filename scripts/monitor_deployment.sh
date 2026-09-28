@@ -166,12 +166,12 @@ for i in $(seq 1 $MAX_ITERATIONS); do
     # Cost estimate
     ELAPSED_MINUTES=$i
     if [ "$GPU_NODE_COUNT" -gt 0 ]; then
-        COST_PER_HOUR=1.36
+        COST_PER_HOUR="${COST_PER_HOUR_GPU}"
         CURRENT_COST=$(echo "scale=2; ${COST_PER_HOUR} * ${ELAPSED_MINUTES} / 60" | bc)
         echo ""
         echo "💰 Estimated cost so far: \$${CURRENT_COST} (with GPU node)"
     else
-        COST_PER_HOUR=0.13
+        COST_PER_HOUR="${COST_PER_HOUR_BASE}"
         CURRENT_COST=$(echo "scale=2; ${COST_PER_HOUR} * ${ELAPSED_MINUTES} / 60" | bc)
         echo ""
         echo "💰 Estimated cost so far: \$${CURRENT_COST} (control plane only)"
