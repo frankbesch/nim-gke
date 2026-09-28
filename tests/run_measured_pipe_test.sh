@@ -6,6 +6,11 @@
 #       (it cannot delete disks and must not outlive the cluster).
 #   N2b watchdog left armed, then a new cluster with the same name appears:
 #       the watchdog sees a different createTime and does not touch it.
+#   K1  SIGKILL to the runner's whole process group mid-deploy: the
+#       watchdog (own session) survives and cleans up within seconds.
+#   K2  pane-close sequence INT, HUP, KILL to the group: same outcome.
+#   G1  Ctrl-C on a piped run leaves phases.log ungarbled (no duplicate or
+#       bare-timestamp lines from bash 3.2's failed-write buffer).
 #   D1  Ctrl-C to the process group during the normal end-of-run cleanup:
 #       the trap re-enters the cleanup lock it already holds (no deadlock),
 #       cleanup completes, the runner exits, and no lock dir is left.
@@ -193,5 +198,70 @@ else
   pkill -f "${OUT4}" 2>/dev/null || true
 fi
 stop_watchdog "${OUT4}"
+
+# --- K1 / K2: the group is killed; the out-of-process watchdog cleans up ---
+cat > "${FAKE_DIR}/deploy_long" <<'EOF2'
+#!/bin/bash
+echo "deploy $*" >> "${CALLS_LOG}"
+python3 -c 'import time; time.sleep(30)'
+EOF2
+chmod +x "${FAKE_DIR}/deploy_long"
+# Slow cleanup: in the live run 3 the KILL landed while the trap's cleanup ran.
+cat > "${FAKE_DIR}/cleanup_slow" <<'EOF2'
+#!/bin/bash
+echo "cleanup $*" >> "${CALLS_LOG}"
+sleep 2
+if [[ -n "${STUB_CLUSTER_STATE_FILE:-}" ]]; then echo absent > "${STUB_CLUSTER_STATE_FILE}"; fi
+exit 0
+EOF2
+chmod +x "${FAKE_DIR}/cleanup_slow"
+run_killed() {  # $1 = label, $2 = "kill" or "pane"
+  local out="${TMP_DIR}/out$1" state="${TMP_DIR}/state$1" pgid wd ok=true
+  : > "${CALLS_LOG}"
+  echo "2026-03-03T00:00:00Z" > "${state}"
+  (
+    set -m
+    STUB_CLUSTER_STATE_FILE="${state}" RUNNER_CLEANUP="${FAKE_DIR}/cleanup_slow" \
+      RUNNER_DEPLOY="${FAKE_DIR}/deploy_long" WATCHDOG_SEC=600 \
+      "${RUNNER}" "${out}" 2>&1 | tee "${TMP_DIR}/$1.log" > /dev/null &
+    sleep 2
+    pgid="$(jobs -p %1)"
+    if [[ "$2" == "pane" ]]; then
+      kill -INT -- "-${pgid}" 2>/dev/null || true
+      sleep 0.3
+      kill -HUP -- "-${pgid}" 2>/dev/null || true
+      sleep 0.3
+    fi
+    kill -KILL -- "-${pgid}" 2>/dev/null || true
+    wait || true
+  ) 2>/dev/null
+  for _ in $(seq 1 30); do
+    grep -q "WATCHDOG: cleanup done\|WATCHDOG: cluster already gone" "${out}/phases.log" 2>/dev/null && break
+    sleep 1
+  done
+  grep -q "^cleanup --yes" "${CALLS_LOG}" || ok=false
+  [[ "$(head -n1 "${state}")" == "absent" ]] || ok=false
+  wd="$(cat "${out}/watchdog.pid" 2>/dev/null || true)"
+  sleep 1
+  [[ -n "${wd}" ]] && ! kill -0 "${wd}" 2>/dev/null || ok=false
+  if [[ "${ok}" == "true" ]]; then
+    pass "$1"
+  else
+    fail "$1" "watchdog did not clean up after the group was killed"
+    cat "${out}/phases.log" 2>/dev/null || true
+    stop_watchdog "${out}"
+  fi
+}
+run_killed K1 kill
+run_killed K2 pane
+
+# --- G1: phases.log is clean after Ctrl-C on a piped run (N1's output) ---
+if grep -qE "^[0-9TZ:-]+$|^$" "${OUT1}/phases.log" \
+   || [[ "$(grep -c "cleanup start (trap)$" "${OUT1}/phases.log")" != "1" ]]; then
+  fail G1 "phases.log garbled after Ctrl-C"
+  cat -vet "${OUT1}/phases.log"
+else
+  pass G1
+fi
 
 exit "${FAIL}"

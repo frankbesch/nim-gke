@@ -58,11 +58,21 @@ EOF
 OUT_DIR=""
 AUTOSCALE_FLAG=0
 TWO_NODES_FLAG=0
+WATCHDOG_MODE=0
+WD_MAIN_PID=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
     -h|--help)
       usage
       exit 0
+      ;;
+    --watchdog-for)
+      # Internal: the runner re-invokes itself in this mode, in its own
+      # session, as the out-of-process watchdog for main pid $2.
+      WATCHDOG_MODE=1
+      WD_MAIN_PID="${2:-}"
+      [[ "${WD_MAIN_PID}" =~ ^[0-9]+$ ]] || { usage >&2; exit 2; }
+      shift
       ;;
     --autoscale)
       AUTOSCALE_FLAG=1
@@ -109,7 +119,7 @@ if [[ "${TWO_NODES_FLAG}" == "1" && "${MAX_GPU_NODES}" -lt 2 ]]; then
   exit 2
 fi
 
-if [[ -z "${NGC_API_KEY}" ]]; then
+if [[ "${WATCHDOG_MODE}" != "1" && -z "${NGC_API_KEY}" ]]; then
   echo "ERROR: NGC_API_KEY (or NGC_CLI_API_KEY) must be set" >&2
   exit 1
 fi
@@ -134,7 +144,8 @@ if [[ "${AUTOSCALE_FLAG}" == "1" ]]; then
 fi
 WATCHDOG_SEC="${WATCHDOG_SEC:-$((RUN_BUDGET_SEC + 1800))}"
 CLEANUP_RETRY_SEC="${CLEANUP_RETRY_SEC:-1200}"
-OPS_WAIT_SEC="${OPS_WAIT_SEC:-60}"
+# A cluster create takes ~7 min; cleanup waits it out before deleting.
+OPS_WAIT_SEC="${OPS_WAIT_SEC:-600}"
 
 ts() { date -u +%FT%TZ; }
 # phases.log first, then best-effort stdout: after Ctrl-C the reader of a
@@ -274,6 +285,9 @@ WATCHDOG_PID=""
 WATCHDOG_STOP="${OUT_DIR}/.watchdog_stop"
 CLEANUP_RAN=0
 MAIN_PID=$$
+if [[ "${WATCHDOG_MODE}" == "1" ]]; then
+  MAIN_PID="${WD_MAIN_PID}"
+fi
 
 run_cleanup_once() {  # $1 = "trap" to log to file only
   # Runs scripts/cleanup.sh --yes (or RUNNER_CLEANUP), appending to
@@ -295,6 +309,8 @@ run_cleanup_once() {  # $1 = "trap" to log to file only
 # runs out first.
 cleanup_with_retry() {
   local start=${SECONDS} attempt=0
+  # A delete during a running create or node-pool operation fails; wait it out.
+  wait_for_no_running_ops "${OPS_WAIT_SEC}" || mark "operations still running after ${OPS_WAIT_SEC}s; trying cleanup anyway"
   while true; do
     attempt=$((attempt + 1))
     mark "cleanup attempt ${attempt} start"
@@ -322,6 +338,14 @@ on_exit() {
   # closed terminal, and no failed write may stop the teardown.
   set +e
   trap '' INT TERM HUP PIPE
+  # After Ctrl-C or a closed terminal, stdout is a dead pipe or tty. Bash 3.2
+  # keeps a failed write in its buffer and flushes it into the next write
+  # (garbling phases.log), and children reading the tty fail. So the trap
+  # talks only to files from here on.
+  # fd 4 keeps the original stderr for the final report (written by an
+  # external cat, so a dead pipe cannot poison bash's own buffer).
+  exec 4>&2
+  exec >> "${OUT_DIR}/trap.log" 2>&1 < /dev/null
   mark "cleanup running -- do not interrupt"
 
   if [[ -n "${PF_PID}" ]] && kill -0 "${PF_PID}" 2>/dev/null; then
@@ -418,8 +442,78 @@ on_exit() {
     echo "============================================================" >&2
   fi
 
+  cat "${OUT_DIR}/trap.log" >&4 2>/dev/null || true
   exit "${final_status}"
 }
+
+# True if MAIN_PID is still this runner (pids get reused).
+main_alive() {
+  kill -0 "${MAIN_PID}" 2>/dev/null \
+    && ps -p "${MAIN_PID}" -o command= 2>/dev/null | grep -q "run_measured"
+}
+
+# Out-of-process watchdog (--watchdog-for). Acts when main dies without a
+# verified clean teardown (no stop file), within seconds, or at the
+# WATCHDOG_SEC deadline (TERM to main first). Retries cleanup, then exits.
+watchdog_main() {
+  trap '' HUP INT
+  unset NGC_API_KEY NGC_CLI_API_KEY
+  local me="watchdog:$$" start=${SECONDS} reason="" g
+  while true; do
+    [[ -f "${WATCHDOG_STOP}" ]] && exit 0
+    if ! main_alive; then
+      sleep 3   # a clean on_exit writes the stop file just before it exits
+      [[ -f "${WATCHDOG_STOP}" ]] && exit 0
+      reason="main (pid ${MAIN_PID}) ended without a verified clean teardown"
+      break
+    fi
+    if (( SECONDS - start >= WATCHDOG_SEC )); then
+      mark "WATCHDOG FIRED: deadline; sending TERM to main (pid ${MAIN_PID})"
+      kill -TERM "${MAIN_PID}" 2>/dev/null || true
+      g=${SECONDS}
+      while (( SECONDS - g < 120 )) && main_alive; do
+        [[ -f "${WATCHDOG_STOP}" ]] && exit 0
+        sleep 1
+      done
+      [[ -f "${WATCHDOG_STOP}" ]] && exit 0
+      reason="deadline"
+      break
+    fi
+    sleep 2
+  done
+  mark "WATCHDOG: ${reason}"
+  # Touch only the cluster this run created (a later run may reuse the name).
+  local recorded_ct live_ct
+  recorded_ct="$(cat "${OUT_DIR}/cluster-create-time" 2>/dev/null || true)"
+  if [[ -n "${recorded_ct}" ]]; then
+    live_ct="$(gcloud container clusters describe "${CLUSTER_NAME}" --zone="${ZONE}" --project="${PROJECT_ID}" --format="value(createTime)" 2>/dev/null || true)"
+    if [[ -n "${live_ct}" && "${live_ct}" != "${recorded_ct}" ]]; then
+      mark "WATCHDOG: ${CLUSTER_NAME} is a different cluster (created ${live_ct}, ours ${recorded_ct}); not touching it"
+      exit 0
+    fi
+  fi
+  acquire_cleanup_lock "${me}"
+  if [[ -f "${WATCHDOG_STOP}" ]] || ! cluster_exists; then
+    release_cleanup_lock "${me}"
+    mark "WATCHDOG: cluster already gone"
+    exit 0
+  fi
+  if cleanup_with_retry; then
+    mark "WATCHDOG: cleanup done (cluster gone)"
+  else
+    mark "WATCHDOG: CLEANUP FAILED. Run: gcloud container clusters delete ${CLUSTER_NAME} --zone=${ZONE} --project=${PROJECT_ID} --quiet"
+  fi
+  release_cleanup_lock "${me}"
+  gcloud compute disks list --project="${PROJECT_ID}" --filter="zone~${ZONE}\$" --format="value(name)" 2>/dev/null \
+    | grep -E "pvc-|${CLUSTER_NAME}" | while read -r d; do
+        mark "WATCHDOG: leftover disk ${d}. Run: gcloud compute disks delete ${d} --zone=${ZONE} --project=${PROJECT_ID}"
+      done
+  exit 0
+}
+
+if [[ "${WATCHDOG_MODE}" == "1" ]]; then
+  watchdog_main
+fi
 
 mark "preflight start"
 PREFLIGHT_CMD="${RUNNER_PREFLIGHT:-${SCRIPT_DIR}/preflight.sh}"
@@ -438,70 +532,15 @@ trap 'exit 130' INT
 trap 'exit 143' TERM
 trap 'exit 129' HUP
 
-# Watchdog: backstop if this run is killed outright, or is stuck. Polls a
-# stop flag in short ticks instead of one long `sleep WATCHDOG_SEC`, so the
-# trap can end it immediately (no orphaned sleep process left behind)
-# instead of having to kill a process group. On fire, it signals the main
-# process first and gives its own trap a chance to clean up (sharing the
-# mkdir lock above), only running cleanup itself if the cluster is still
-# there after that grace period.
+# Watchdog: a separate process in its own session (python3 os.setsid; macOS
+# has no setsid command), so a closed terminal or a SIGKILL to the runner's
+# process group cannot take it down with the runner. It re-invokes this
+# script in --watchdog-for mode; see watchdog_main above.
 rm -f "${WATCHDOG_STOP}"
-(
-  # Survive a closed terminal: the runner cleans up on HUP, but if it dies
-  # without cleaning up, this is the backstop. It never needs the NGC key.
-  trap '' HUP
-  unset NGC_API_KEY NGC_CLI_API_KEY
-  wd_start=${SECONDS}
-  while (( SECONDS - wd_start < WATCHDOG_SEC )); do
-    [[ -f "${WATCHDOG_STOP}" ]] && exit 0
-    sleep 1
-  done
-  [[ -f "${WATCHDOG_STOP}" ]] && exit 0
-  # Signal main only if that pid is still this runner (pids get reused).
-  if ps -p "${MAIN_PID}" -o command= 2>/dev/null | grep -q "run_measured"; then
-    echo "$(ts) WATCHDOG FIRED: sending TERM to main (pid ${MAIN_PID})" >> "${OUT_DIR}/phases.log"
-    kill -TERM "${MAIN_PID}" 2>/dev/null || true
-  else
-    echo "$(ts) WATCHDOG FIRED: main (pid ${MAIN_PID}) already gone" >> "${OUT_DIR}/phases.log"
-  fi
-  grace_start=${SECONDS}
-  while (( SECONDS - grace_start < 120 )); do
-    kill -0 "${MAIN_PID}" 2>/dev/null || break
-    [[ -f "${WATCHDOG_STOP}" ]] && exit 0
-    sleep 1
-  done
-  [[ -f "${WATCHDOG_STOP}" ]] && exit 0
-  # Touch only the cluster this run created: compare createTime recorded
-  # after deploy with the live one (a later run may reuse CLUSTER_NAME).
-  recorded_ct="$(cat "${OUT_DIR}/cluster-create-time" 2>/dev/null || true)"
-  if [[ -n "${recorded_ct}" ]]; then
-    live_ct="$(gcloud container clusters describe "${CLUSTER_NAME}" --zone="${ZONE}" --project="${PROJECT_ID}" --format="value(createTime)" 2>/dev/null || true)"
-    if [[ -n "${live_ct}" && "${live_ct}" != "${recorded_ct}" ]]; then
-      echo "$(ts) WATCHDOG: ${CLUSTER_NAME} is a different cluster (created ${live_ct}, ours ${recorded_ct}); not touching it" >> "${OUT_DIR}/phases.log"
-      exit 0
-    fi
-  fi
-  if cluster_exists; then
-    echo "$(ts) WATCHDOG: cluster ${CLUSTER_NAME} still exists after waiting for main; running cleanup" >> "${OUT_DIR}/phases.log"
-    # bash 3.2 has no BASHPID; `exec sh` makes $PPID this subshell's pid.
-    wd_me="watchdog:${BASHPID:-$(exec sh -c 'echo $PPID')}"
-    acquire_cleanup_lock "${wd_me}"
-    # The wait may have been long: re-check before acting.
-    if [[ -f "${WATCHDOG_STOP}" ]] || ! cluster_exists; then
-      release_cleanup_lock "${wd_me}"
-      exit 0
-    fi
-    cmd="${RUNNER_CLEANUP:-${SCRIPT_DIR}/cleanup.sh}"
-    "${cmd}" --yes >> "${OUT_DIR}/watchdog.log" 2>&1 || true
-    release_cleanup_lock "${wd_me}"
-  fi
-# Explicitly detached stdio: if a run leaves the watchdog armed (a
-# teardown that could not be verified clean, see on_exit), it can outlive
-# the main process. Without this redirect it would keep holding open the
-# parent's inherited stdout/stderr, and anything reading the main
-# process's output via a pipe or `$(...)` (real usage, and every test
-# here) would block waiting for EOF until the watchdog itself exits.
-) < /dev/null >> "${OUT_DIR}/watchdog-bg.log" 2>&1 &
+export WATCHDOG_SEC CLEANUP_RETRY_SEC OPS_WAIT_SEC CLEANUP_LOCK_WAIT_SEC
+python3 -c 'import os, sys; os.setsid(); os.execvp(sys.argv[1], sys.argv[1:])' \
+  bash "${SCRIPT_DIR}/run_measured.sh" --watchdog-for "${MAIN_PID}" "${OUT_DIR}" \
+  < /dev/null >> "${OUT_DIR}/watchdog.log" 2>&1 &
 WATCHDOG_PID=$!
 disown "${WATCHDOG_PID}" 2>/dev/null || true
 echo "${WATCHDOG_PID}" > "${OUT_DIR}/watchdog.pid"

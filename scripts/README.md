@@ -127,17 +127,23 @@ export PROJECT_ID='your-gcp-project'
 phase marks), `preflight.log`, `deploy.log`, `pod.json`, `pod.log`,
 `port-forward.log`, `bench.log`, `bench.json`, `cleanup.log`,
 `operations.txt`, `final-clusters.txt`, `final-disks.txt`,
-`watchdog.pid`, and `watchdog.log` if the watchdog fires.
+`watchdog.pid`, `watchdog.log`, and `trap.log` (the trap's own output).
 
 **Safety net**:
-- An `EXIT`/`INT`/`TERM` trap runs exactly once: kills the port-forward,
-  runs `cleanup.sh --yes` if cleanup did not already succeed in the normal
-  path, records final cluster/disk/operations state, and fails the run if
-  the cluster or any `pvc-`/cluster-named disk is still present.
-- A background watchdog (default 60 min, `WATCHDOG_SEC`) is a backstop:
-  if the run is killed outright, it runs `cleanup.sh --yes` once the
-  timer expires and the cluster still exists. The trap stops the watchdog
-  on every exit.
+- An `EXIT`/`INT`/`TERM`/`HUP` trap tears down on every exit, including
+  Ctrl-C and a closed terminal. It ignores further signals, writes only to
+  files (`trap.log`), waits out any running GKE operation, and retries
+  `cleanup.sh --yes` until the cluster is gone (`CLEANUP_RETRY_SEC`, default
+  20 min). It then records final cluster/disk/operations state, prints
+  `trap.log` to the terminal, and fails the run if the cluster or any
+  `pvc-`/cluster-named disk is still present.
+- A watchdog runs as a separate process in its own session, so closing the
+  terminal or killing the runner's process group (even with SIGKILL) does
+  not stop it. If the runner ends without a verified clean teardown, the
+  watchdog takes over within seconds and retries cleanup itself. It also
+  enforces an overall deadline (`WATCHDOG_SEC`, default: the sum of the
+  phase timeouts plus 30 min). It only touches the cluster this run created
+  (checked by `createTime`).
 - The Ready wait has a timeout (default 30 min, `READY_TIMEOUT_SEC`); it no
   longer spins forever once a cluster is gone.
 
@@ -154,10 +160,9 @@ back to 0. **Spends money for two GPUs** when `--two-nodes` is used (quota:
 set `MAX_GPU_NODES=2` and have 2 L4s of quota; `preflight.sh` checks this
 when `AUTOSCALE=1`, see below). Timeouts: `SCALE_UP_TIMEOUT_SEC` (default
 1200s) for each node to become Ready, `SCALE_DOWN_TIMEOUT_SEC` (default
-3600s, GKE does not document the scale-down wait) for the node count to
+1800s, GKE does not document the scale-down wait) for the node count to
 reach 0; any phase timeout marks `<phase> TIMEOUT` in `phases.log` and exits
-1 (the trap still cleans up). `WATCHDOG_SEC` defaults to 7200 (up from 3600)
-under `--autoscale`. Extra evidence files under `OUT_DIR`: `events.txt`
+1 (the trap still cleans up). `WATCHDOG_SEC` grows with the phases in use. Extra evidence files under `OUT_DIR`: `events.txt`
 (appended at each phase end), `nodes-<phase>.txt` (one per phase), and
 `autoscaler.json` (the `container.googleapis.com/cluster-autoscaler-visibility`
 log for this cluster/run, via `gcloud logging read`; a failure to fetch it is
