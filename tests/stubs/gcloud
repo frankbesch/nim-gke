@@ -25,6 +25,18 @@ case "$1 $2 $3" in
   "container clusters delete")
     exit 0
     ;;
+  "container node-pools describe")
+    # tests/deploy_autoscale_test.sh: STUB_NODEPOOL absent (default) forces
+    # the create branch in deploy_nim_gke.sh so the create call is logged.
+    if [[ "${STUB_NODEPOOL:-absent}" == "absent" ]]; then
+      echo "ERROR: (gcloud.container.node-pools.describe) ResponseError: code=404, message=Not found: NOT_FOUND" >&2
+      exit 1
+    fi
+    exit 0
+    ;;
+  "container node-pools create")
+    exit 0
+    ;;
 esac
 
 case "$1 $2" in

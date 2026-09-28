@@ -81,13 +81,27 @@ echo "   This may take 5-10 minutes..."
 if gcloud container node-pools describe gpupool --cluster="${CLUSTER_NAME}" --zone="${ZONE}" --project="${PROJECT_ID}" &> /dev/null; then
   echo "⚠️  GPU node pool 'gpupool' already exists, skipping creation..."
 else
-  gcloud container node-pools create gpupool \
-      --accelerator type="${GPU_TYPE}",count="${GPU_COUNT}",gpu-driver-version=latest \
-      --project="${PROJECT_ID}" \
-      --location="${ZONE}" \
-      --cluster="${CLUSTER_NAME}" \
-      --machine-type="${NODE_POOL_MACHINE_TYPE}" \
-      --num-nodes=1
+  if [[ "${AUTOSCALE}" == "1" ]]; then
+    echo "   AUTOSCALE=1: gpupool starts at 0 nodes; cluster autoscaler scales 0-${MAX_GPU_NODES}."
+    gcloud container node-pools create gpupool \
+        --accelerator type="${GPU_TYPE}",count="${GPU_COUNT}",gpu-driver-version=latest \
+        --project="${PROJECT_ID}" \
+        --location="${ZONE}" \
+        --cluster="${CLUSTER_NAME}" \
+        --machine-type="${NODE_POOL_MACHINE_TYPE}" \
+        --num-nodes=0 \
+        --enable-autoscaling \
+        --min-nodes=0 \
+        --max-nodes="${MAX_GPU_NODES}"
+  else
+    gcloud container node-pools create gpupool \
+        --accelerator type="${GPU_TYPE}",count="${GPU_COUNT}",gpu-driver-version=latest \
+        --project="${PROJECT_ID}" \
+        --location="${ZONE}" \
+        --cluster="${CLUSTER_NAME}" \
+        --machine-type="${NODE_POOL_MACHINE_TYPE}" \
+        --num-nodes=1
+  fi
 
   echo "✅ GPU node pool created successfully"
 fi
@@ -162,9 +176,14 @@ echo "✅ Deployment submitted; wait for pod Ready"
 echo ""
 echo "👀 Monitoring NIM deployment..."
 echo "   Waiting for pod to be ready (this may take 10-20 minutes)..."
+if [[ "${AUTOSCALE}" == "1" ]]; then
+  echo "   AUTOSCALE=1: gpupool has 0 nodes; the pod stays Pending until the"
+  echo "   cluster autoscaler creates a GPU node (see run_measured.sh --autoscale)."
+fi
 echo ""
 
-# Wait for pod to be created
+# Wait for pod to be created (does not require a GPU node to exist: the pod
+# is expected to be Pending here when AUTOSCALE=1)
 sleep 10
 
 # Show pod status

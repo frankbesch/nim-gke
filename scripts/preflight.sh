@@ -133,6 +133,61 @@ print(f"available {available} >= needed {need} (limit {q['limit']}, usage {q['us
 PYEOF
 }
 
+# 7 (AUTOSCALE=1 only). Enough GPU quota for MAX_GPU_NODES: both the
+# project-wide GPUS_ALL_REGIONS limit and the regional NVIDIA_L4_GPUS limit
+# must have at least MAX_GPU_NODES * GPU_COUNT available.
+check_autoscale_quota() {
+  local need proj_json region_json
+  need=$(( MAX_GPU_NODES * GPU_COUNT ))
+  proj_json="$(gcloud compute project-info describe --project="${PROJECT_ID}" --format=json 2>&1)" || {
+    echo "gcloud compute project-info describe failed: ${proj_json}"
+    return 1
+  }
+  region_json="$(gcloud compute regions describe "${REGION}" --project="${PROJECT_ID}" --format=json 2>&1)" || {
+    echo "gcloud compute regions describe failed: ${region_json}"
+    return 1
+  }
+  python3 - "${proj_json}" "${region_json}" "${need}" <<'PYEOF'
+import json, sys
+proj = json.loads(sys.argv[1])
+region = json.loads(sys.argv[2])
+need = float(sys.argv[3])
+
+proj_quotas = {q["metric"]: q for q in proj.get("quotas", [])}
+region_quotas = {q["metric"]: q for q in region.get("quotas", [])}
+
+fail = []
+ok = []
+
+gar = proj_quotas.get("GPUS_ALL_REGIONS")
+if gar is None:
+    fail.append("GPUS_ALL_REGIONS quota not found in project")
+else:
+    avail = gar["limit"] - gar["usage"]
+    msg = f"GPUS_ALL_REGIONS available {avail} (limit {gar['limit']}, usage {gar['usage']})"
+    if avail < need:
+        fail.append(f"{msg} < needed {need}")
+    else:
+        ok.append(msg)
+
+l4 = region_quotas.get("NVIDIA_L4_GPUS")
+if l4 is None:
+    fail.append("NVIDIA_L4_GPUS quota not found in region")
+else:
+    avail = l4["limit"] - l4["usage"]
+    msg = f"NVIDIA_L4_GPUS available {avail} (limit {l4['limit']}, usage {l4['usage']})"
+    if avail < need:
+        fail.append(f"{msg} < needed {need}")
+    else:
+        ok.append(msg)
+
+if fail:
+    print("; ".join(fail), file=sys.stderr)
+    sys.exit(1)
+print(f"needed {need}: " + "; ".join(ok))
+PYEOF
+}
+
 # 6. No existing cluster with CLUSTER_NAME.
 check_no_cluster() {
   # stdout only: gcloud warns on stderr when the filter matches nothing,
@@ -160,6 +215,10 @@ check "image tag exists (nvcr.io)" check_image_tag
 check "chart fetch (helm.ngc.nvidia.com)" check_chart_fetch
 check "L4 quota in ${REGION}" check_l4_quota
 check "no existing cluster ${CLUSTER_NAME}" check_no_cluster
+
+if [[ "${AUTOSCALE:-0}" == "1" ]]; then
+  check "autoscale quota for MAX_GPU_NODES=${MAX_GPU_NODES} (GPUS_ALL_REGIONS / NVIDIA_L4_GPUS)" check_autoscale_quota
+fi
 
 if [[ "${FAIL}" -ne 0 ]]; then
   echo "PREFLIGHT: FAIL"

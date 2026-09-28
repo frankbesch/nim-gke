@@ -4,6 +4,32 @@ set -euo pipefail
 
 echo "kubectl $*" >> "${STUB_LOG}"
 
+# run_measured_autoscale_test.sh: `kubectl get nodes -l
+# cloud.google.com/gke-accelerator --no-headers`. STUB_GPU_NODE_SEQ_FILE, if
+# set, names a file with one GPU-node-count per line; each call here returns
+# the next count (clamped to the last line once exhausted) so a test can
+# script a deterministic 0 -> 1 -> 2 -> 0 sequence. Unset/absent: 0 nodes.
+if [[ "${1:-}" == "get" && "${2:-}" == "nodes" && "$*" == *"cloud.google.com/gke-accelerator"* ]]; then
+  count=0
+  if [[ -n "${STUB_GPU_NODE_SEQ_FILE:-}" && -f "${STUB_GPU_NODE_SEQ_FILE}" ]]; then
+    total_lines="$(wc -l < "${STUB_GPU_NODE_SEQ_FILE}" | tr -d ' ')"
+    idx_file="${STUB_GPU_NODE_SEQ_FILE}.idx"
+    idx=1
+    [[ -f "${idx_file}" ]] && idx="$(cat "${idx_file}")"
+    if (( idx > total_lines )); then
+      idx="${total_lines}"
+    fi
+    count="$(sed -n "${idx}p" "${STUB_GPU_NODE_SEQ_FILE}")"
+    echo $((idx + 1)) > "${idx_file}"
+  fi
+  i=0
+  while (( i < count )); do
+    echo "gpu-node-${i} Ready <none> 1m v1.30"
+    i=$((i + 1))
+  done
+  exit 0
+fi
+
 # run_measured_test.sh: `kubectl get pod NAME -n NS -o jsonpath=...ready...`
 # and `kubectl get pod NAME -n NS -o json`. STUB_POD_READY (default true)
 # controls the readiness value; unrelated to cleanup_test.sh, which never

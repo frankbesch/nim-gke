@@ -1,0 +1,21 @@
+#!/bin/bash
+# Stub curl for tests/deploy_autoscale_test.sh (deploy_nim_gke.sh's
+# ngc_fetch_chart -> ngc_curl -> curl). Never touches the network. Consumes
+# stdin (the -K - config, which may carry the NGC key) without logging it;
+# logs only the argv, same as the other stubs.
+set -euo pipefail
+
+echo "curl $*" >> "${STUB_LOG}"
+cat >/dev/null 2>&1 || true
+
+out=""
+prev=""
+for arg in "$@"; do
+  if [[ "${prev}" == "-o" ]]; then
+    out="${arg}"
+  fi
+  prev="${arg}"
+done
+[[ -n "${out}" ]] && : > "${out}"
+
+exit 0

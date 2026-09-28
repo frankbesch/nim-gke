@@ -26,6 +26,9 @@ jobs:
         run: |
           bash tests/cleanup_test.sh
           bash tests/run_measured_test.sh
+          bash tests/run_measured_autoscale_test.sh
+          bash tests/deploy_autoscale_test.sh
+          bash tests/preflight_autoscale_test.sh
 
       - name: Check script permissions
         run: |

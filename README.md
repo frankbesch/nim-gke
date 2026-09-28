@@ -308,8 +308,10 @@ Notes:
   zonal cluster fee applies, on both the measured and the unmeasured
   autoscaling path. There is no "$0/hour while idle" state short of
   deleting the cluster.
-- The autoscaling production path (`deploy_nim_production.sh`) has not been
-  measured; it has no cost or latency numbers here.
+- The autoscaling paths (`deploy_nim_production.sh`, and `deploy_nim_gke.sh`
+  `AUTOSCALE=1` exercised via `run_measured.sh --autoscale`/`--two-nodes`,
+  see `scripts/README.md`) have not been measured; neither has cost or
+  latency numbers here.
 
 ---
 

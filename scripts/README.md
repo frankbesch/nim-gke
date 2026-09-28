@@ -70,7 +70,7 @@ export PROJECT_ID='your-gcp-project'
 
 ### `preflight.sh`
 
-**Purpose**: Six read-only checks before deploying: NGC key present, gcloud auth, image tag reachable, chart fetch, L4 quota, no existing cluster of the target name.
+**Purpose**: Six read-only checks before deploying: NGC key present, gcloud auth, image tag reachable, chart fetch, L4 quota, no existing cluster of the target name. A seventh check runs when `AUTOSCALE=1`: project `GPUS_ALL_REGIONS` and regional `NVIDIA_L4_GPUS` quota must each have at least `MAX_GPU_NODES * GPU_COUNT` available (2 GPUs of quota for `run_measured.sh --two-nodes`); fails with the limit/usage numbers in the message if not.
 
 **Usage**:
 ```bash
@@ -141,7 +141,28 @@ phase marks), `preflight.log`, `deploy.log`, `pod.json`, `pod.log`,
 - The Ready wait has a timeout (default 30 min, `READY_TIMEOUT_SEC`); it no
   longer spins forever once a cluster is gone.
 
-**Reserved**: `--autoscale` is not implemented yet (exits 2 if passed).
+**`--autoscale` / `--two-nodes`** (unmeasured autoscale test path): adds a
+GPU-node autoscale test on top of the same runner. `--autoscale` deploys with
+`AUTOSCALE=1` (`deploy_nim_gke.sh` creates `gpupool` at 0 nodes with cluster
+autoscaling, `--min-nodes=0 --max-nodes=${MAX_GPU_NODES}`), waits for the
+cluster autoscaler to bring up one GPU node, then runs the normal Ready-wait
+and bench, then scales the StatefulSet back to 0 and waits for the
+autoscaler to remove the node before cleanup. `--two-nodes` (requires
+`--autoscale` and `MAX_GPU_NODES>=2`, else exit 2) additionally scales the
+StatefulSet to 2 replicas and waits for a second GPU node before scaling
+back to 0. **Spends money for two GPUs** when `--two-nodes` is used (quota:
+set `MAX_GPU_NODES=2` and have 2 L4s of quota; `preflight.sh` checks this
+when `AUTOSCALE=1`, see below). Timeouts: `SCALE_UP_TIMEOUT_SEC` (default
+1200s) for each node to become Ready, `SCALE_DOWN_TIMEOUT_SEC` (default
+3600s, GKE does not document the scale-down wait) for the node count to
+reach 0; any phase timeout marks `<phase> TIMEOUT` in `phases.log` and exits
+1 (the trap still cleans up). `WATCHDOG_SEC` defaults to 7200 (up from 3600)
+under `--autoscale`. Extra evidence files under `OUT_DIR`: `events.txt`
+(appended at each phase end), `nodes-<phase>.txt` (one per phase), and
+`autoscaler.json` (the `container.googleapis.com/cluster-autoscaler-visibility`
+log for this cluster/run, via `gcloud logging read`; a failure to fetch it is
+logged but does not fail the run). Without `--autoscale`, the run behaves
+exactly as before.
 
 ---
 
@@ -309,8 +330,11 @@ source "$(dirname "${BASH_SOURCE[0]}")/config.env"
 `PROJECT_ID` has no default; scripts stop if it is unset. Every other
 variable (`REGION`, `ZONE`, `CLUSTER_NAME`, `GPU_TYPE`,
 `NODE_POOL_MACHINE_TYPE`, `CLUSTER_MACHINE_TYPE`, `NIM_CHART_VERSION`,
-`NIM_RELEASE_NAME`, `NIM_NAMESPACE`) has a default in `config.env`.
-Override any value by exporting it before running a script.
+`NIM_RELEASE_NAME`, `NIM_NAMESPACE`, `AUTOSCALE`, `MAX_GPU_NODES`) has a
+default in `config.env`. Override any value by exporting it before running a
+script. `AUTOSCALE` (default `0`) and `MAX_GPU_NODES` (default `1`) drive
+the unmeasured autoscale test path: see `deploy_nim_gke.sh` and
+`run_measured.sh --autoscale`/`--two-nodes` above.
 
 ### Logging
 
