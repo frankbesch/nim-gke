@@ -224,16 +224,38 @@ cluster_exists() {
 
 CLEANUP_LOCK_DIR="${OUT_DIR}/.cleanup_lock"
 
-# Blocking mkdir-based lock so the trap cleanup and the watchdog cleanup
-# never run at the same time.
-acquire_cleanup_lock() {
-  while ! mkdir "${CLEANUP_LOCK_DIR}" 2>/dev/null; do
+# mkdir-based lock so the trap cleanup and the watchdog cleanup never run
+# at the same time. Owner-aware: the owner may re-enter (main holds it in the
+# normal-path cleanup when a signal sends it into on_exit), a dead owner's
+# lock is broken, and every wait is bounded so a backstop never blocks forever.
+CLEANUP_LOCK_WAIT_SEC="${CLEANUP_LOCK_WAIT_SEC:-1800}"
+acquire_cleanup_lock() {  # $1 = owner id "role:pid"
+  local me="$1" start=${SECONDS} cur pid
+  while true; do
+    if mkdir "${CLEANUP_LOCK_DIR}" 2>/dev/null; then
+      echo "${me}" > "${CLEANUP_LOCK_DIR}/owner"
+      return 0
+    fi
+    cur="$(cat "${CLEANUP_LOCK_DIR}/owner" 2>/dev/null || true)"
+    [[ "${cur}" == "${me}" ]] && return 0
+    pid="${cur##*:}"
+    if [[ -n "${cur}" && "${pid}" =~ ^[0-9]+$ ]] && ! kill -0 "${pid}" 2>/dev/null; then
+      rm -rf "${CLEANUP_LOCK_DIR}"
+      continue
+    fi
+    if (( SECONDS - start >= CLEANUP_LOCK_WAIT_SEC )); then
+      echo "$(ts) cleanup lock wait timed out (held by ${cur:-unknown}); proceeding" >> "${OUT_DIR}/phases.log"
+      return 0
+    fi
     sleep 1
   done
 }
 
-release_cleanup_lock() {
-  rmdir "${CLEANUP_LOCK_DIR}" 2>/dev/null || true
+release_cleanup_lock() {  # $1 = owner id; removes the lock only if we hold it
+  local cur
+  cur="$(cat "${CLEANUP_LOCK_DIR}/owner" 2>/dev/null || true)"
+  [[ "${cur}" == "$1" ]] && rm -rf "${CLEANUP_LOCK_DIR}"
+  return 0
 }
 
 wait_for_no_running_ops() {  # $1 = timeout seconds; best-effort, never fails the caller
@@ -307,7 +329,7 @@ on_exit() {
     wait "${PF_PID}" 2>/dev/null || true
   fi
 
-  acquire_cleanup_lock
+  acquire_cleanup_lock "main:${MAIN_PID}"
   local final_status="${exit_status}"
   # Any exit that did not reach the success line (e.g. a runtime syntax
   # error, which can leave $? at 0) is a failure.
@@ -324,7 +346,7 @@ on_exit() {
       final_status=1
     fi
   fi
-  release_cleanup_lock
+  release_cleanup_lock "main:${MAIN_PID}"
 
   gcloud container operations list --project="${PROJECT_ID}" --zone="${ZONE}" \
     --format="table(operationType,targetLink.basename(),startTime,endTime,status)" \
@@ -459,10 +481,12 @@ rm -f "${WATCHDOG_STOP}"
   fi
   if cluster_exists; then
     echo "$(ts) WATCHDOG: cluster ${CLUSTER_NAME} still exists after waiting for main; running cleanup" >> "${OUT_DIR}/phases.log"
-    acquire_cleanup_lock
+    # bash 3.2 has no BASHPID; `exec sh` makes $PPID this subshell's pid.
+    wd_me="watchdog:${BASHPID:-$(exec sh -c 'echo $PPID')}"
+    acquire_cleanup_lock "${wd_me}"
     cmd="${RUNNER_CLEANUP:-${SCRIPT_DIR}/cleanup.sh}"
     "${cmd}" --yes >> "${OUT_DIR}/watchdog.log" 2>&1 || true
-    release_cleanup_lock
+    release_cleanup_lock "${wd_me}"
   fi
 # Explicitly detached stdio: if a run leaves the watchdog armed (a
 # teardown that could not be verified clean, see on_exit), it can outlive
@@ -600,12 +624,12 @@ if [[ "${AUTOSCALE:-0}" == "1" ]]; then
 fi
 
 mark "cleanup start"
-acquire_cleanup_lock
+acquire_cleanup_lock "main:${MAIN_PID}"
 if run_cleanup_once; then
-  release_cleanup_lock
+  release_cleanup_lock "main:${MAIN_PID}"
   CLEANUP_RAN=1
 else
-  release_cleanup_lock
+  release_cleanup_lock "main:${MAIN_PID}"
   mark "cleanup FAILED; retrying in trap"
   exit 1
 fi

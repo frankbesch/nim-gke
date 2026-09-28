@@ -6,6 +6,9 @@
 #       (it cannot delete disks and must not outlive the cluster).
 #   N2b watchdog left armed, then a new cluster with the same name appears:
 #       the watchdog sees a different createTime and does not touch it.
+#   D1  Ctrl-C to the process group during the normal end-of-run cleanup:
+#       the trap re-enters the cleanup lock it already holds (no deadlock),
+#       cleanup completes, the runner exits, and no lock dir is left.
 # No network: tests/stubs on PATH plus fake RUNNER_* scripts.
 
 set -euo pipefail
@@ -142,5 +145,51 @@ else
   cat "${OUT3}/phases.log" 2>/dev/null || true
 fi
 stop_watchdog "${OUT3}"
+
+# --- D1: INT to the group while the normal-path cleanup is running ---
+: > "${CALLS_LOG}"
+OUT4="${TMP_DIR}/outD1"
+cat > "${FAKE_DIR}/cleanup_slow_first" <<'EOF2'
+#!/bin/bash
+echo "cleanup $*" >> "${CALLS_LOG}"
+if [[ ! -f "${D1_STARTED}" ]]; then
+  touch "${D1_STARTED}"
+  sleep 4
+fi
+exit 0
+EOF2
+chmod +x "${FAKE_DIR}/cleanup_slow_first"
+export D1_STARTED="${TMP_DIR}/d1.started"
+(
+  set -m
+  STUB_CLUSTER=absent RUNNER_DEPLOY="${FAKE_DIR}/ok" RUNNER_CLEANUP="${FAKE_DIR}/cleanup_slow_first" \
+    "${RUNNER}" "${OUT4}" > "${TMP_DIR}/d1.log" 2>&1 &
+  for _ in $(seq 1 30); do [[ -f "${D1_STARTED}" ]] && break; sleep 0.5; done
+  pgid="$(jobs -p %1)"
+  kill -INT -- "-${pgid}" 2>/dev/null || true
+  # Bounded wait: a deadlocked runner must fail this test, not hang CI.
+  for _ in $(seq 1 60); do
+    kill -0 -- "-${pgid}" 2>/dev/null || break
+    sleep 1
+  done
+  if kill -0 -- "-${pgid}" 2>/dev/null; then
+    echo "D1: runner still running 60 s after Ctrl-C (deadlock)" >> "${OUT4}/phases.log"
+    kill -9 -- "-${pgid}" 2>/dev/null || true
+  fi
+  wait || true
+)
+d1_ok=true
+! grep -q "deadlock" "${OUT4}/phases.log" 2>/dev/null || d1_ok=false
+grep -q "cleanup end (trap)" "${OUT4}/phases.log" 2>/dev/null || d1_ok=false
+[[ ! -d "${OUT4}/.cleanup_lock" ]] || d1_ok=false
+[[ -f "${OUT4}/final-clusters.txt" ]] || d1_ok=false
+if [[ "${d1_ok}" == "true" ]]; then
+  pass D1
+else
+  fail D1 "trap cleanup after Ctrl-C during normal cleanup did not complete"
+  cat "${OUT4}/phases.log" 2>/dev/null || true
+  pkill -f "${OUT4}" 2>/dev/null || true
+fi
+stop_watchdog "${OUT4}"
 
 exit "${FAIL}"
