@@ -344,10 +344,10 @@ each kit has to do itself.
 | GPU taint and toleration | GKE adds the taint `nvidia.com/gpu=present:NoSchedule` and adds the toleration to pods that request a GPU. | The autoscaler treats GPU nodes as tainted `nvidia.com/gpu:NoSchedule`. The chart carries the toleration. |
 | System node | The default CPU node pool runs system pods. Google states that a Standard cluster keeps at least one node for them. | One CPU node pool that the autoscaler does not manage. Oracle requires it to run the autoscaler and cluster add-ons. |
 | Cluster autoscaler | Three flags on the node pool: `--enable-autoscaling`, `--min-nodes`, `--max-nodes`. The kit deploys no autoscaler. | The kit installs the Cluster Autoscaler add-on with `min:max:pool` and its scale-down timers. |
-| Autoscaler permissions | The kit creates none. | A dynamic group and a six-statement policy, created once by the account owner. |
-| GPU pool from zero nodes | Measured once: 0 to 1 to 0 on one L4, in nim-gke run 3. | Supported by the autoscaler's code. Oracle's documentation does not state it. The pool carries a tag that tells the autoscaler the node's storage. |
+| Autoscaler permissions | The kit creates none. | A dynamic group and a six-statement policy, created once by the account owner. IAM writes go to the tenancy's home region. |
+| GPU pool from zero nodes | Measured once: 0 to 1 to 0 on one L4, in nim-gke run 3. | Measured once: 0 to 1 to 0 on one A10, in nimble-oke run 2. Oracle's documentation does not state it. The pool carries a tag that tells the autoscaler the node's storage. |
 | GPU quota | A project quota, `GPUS_ALL_REGIONS`, plus the regional GPU quota. | A service limit per availability domain, `gpu-a10-count`. The default is 0. |
-| Confirming a delete | `gcloud` waits for the delete. The kit then checks for a leftover model-store disk. | A delete returns a work request. The kit waits for it, then reads the resource state. |
+| Confirming a delete | `gcloud` waits for the delete. The kit then checks for a leftover model-store disk. | A delete returns a work request. The kit waits for it, then polls the resource state. A node pool delete drains nodes for up to 60 minutes by default; the kit passes a zero grace period at teardown. |
 | Cluster fee | The zonal cluster fee applies on both paths. | $0.10 per hour for an enhanced cluster. Basic clusters are free and cannot run the add-on. |
 
 None of these is a defect in either platform. They are the steps a script
