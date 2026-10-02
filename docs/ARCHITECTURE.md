@@ -38,14 +38,14 @@ NVIDIA L4 GPU (24GB VRAM, Tensor Cores)
 1. **default-pool** (control plane workloads)
    - Machine type: e2-standard-4 (4 vCPU, 16GB RAM)
    - Nodes: 1 (fixed)
-   - Cost: see [README cost table](../README.md#cost-and-performance)
+   - Cost: see [README cost table](../README.md#measured-results)
 
 2. **gpupool** (GPU workloads)
    - Machine type: g2-standard-4 (4 vCPU, 16GB RAM, 1× L4)
    - Nodes: 0-2 (autoscaling)
    - GPU driver: Latest (installed automatically)
-   - Cost: see [README cost table](../README.md#cost-and-performance) and
-     [runs/2026-09-27-measured-run.md](runs/2026-09-27-measured-run.md)
+   - Cost: see [README cost table](../README.md#measured-results) and
+     [runs/2026-09-27-run-1-fixed.md](runs/2026-09-27-run-1-fixed.md)
 
 **Autoscaling**:
 - Triggered by pod resource requests (`nvidia.com/gpu: 1`)
@@ -60,7 +60,7 @@ NVIDIA L4 GPU (24GB VRAM, Tensor Cores)
 - Registry: `nvcr.io/nim/meta/llama3-8b-instruct`
 - Tag: `1.0.0`
 
-**Inference backend**: NIM picks a backend profile at startup for the detected GPU; on the L4 it found one compatible profile, `vllm-fp16-tp1` (vLLM, FP16), per the [run 2 pod log](runs/2026-09-27-run-2.md#backend-profile).
+**Inference backend**: NIM picks a backend profile at startup for the detected GPU; on the L4 it found one compatible profile, `vllm-fp16-tp1` (vLLM, FP16), per the [run 2 pod log](runs/2026-09-27-run-2-fixed.md#backend-profile).
 Profile selection is visible in the pod log at startup
 (`kubectl logs my-nim-nim-llm-0 -n nim | grep -i profile`).
 
@@ -110,7 +110,7 @@ Two secrets in namespace `nim`, both created by `ngc_apply_secrets` in
 10. **Client** → Receive completion
 
 **Measured latency** (single stream, port-forward, one L4): see
-[runs/2026-09-27-measured-run.md](runs/2026-09-27-measured-run.md) — p50
+[runs/2026-09-27-run-1-fixed.md](runs/2026-09-27-run-1-fixed.md) — p50
 11.1s / p95 16.0s end-to-end, p50 time-to-first-token 0.29s, p50 output
 throughput 15.9 tokens/s. These are n=20 and n=5 samples, not a load test.
 
@@ -206,7 +206,7 @@ localhost:8000 → kubectl proxy → API server → Node → Pod:8000
 **Production alternative**: Ingress + LoadBalancer
 - Terminate TLS at Ingress
 - Cloud Load Balancer for HA
-- Additional cost: unmeasured; see [README cost table](../README.md#cost-and-performance)
+- Additional cost: unmeasured; see [README cost table](../README.md#measured-results)
 
 ---
 
@@ -364,7 +364,7 @@ Integrate OpenTelemetry:
 ### Why L4 GPU?
 
 **L4 advantages**:
-- Cost: see [README cost table](../README.md#cost-and-performance) for the measured L4 rate;
+- Cost: see [README cost table](../README.md#measured-results) for the measured L4 rate;
   A100 rate not measured here
 - Availability: More zones than A100/H100
 - Sufficient for 8B models (24GB VRAM)
@@ -373,7 +373,7 @@ Integrate OpenTelemetry:
 for this model family
 (https://docs.nvidia.com/nim/large-language-models/latest/reference/support-matrix.html).
 It ran and was measured working in this repo's one end-to-end run; see
-[runs/2026-09-27-measured-run.md](runs/2026-09-27-measured-run.md).
+[runs/2026-09-27-run-1-fixed.md](runs/2026-09-27-run-1-fixed.md).
 
 **A100 needed for**:
 - Models >30B parameters

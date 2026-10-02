@@ -7,7 +7,7 @@ Based on the [official Google Codelabs tutorial](https://codelabs.developers.goo
 **Status**: `deploy_nim_production.sh` (autoscaling GPU pool, 0-2 nodes) is
 unmeasured. The one measured end-to-end run used
 `scripts/deploy_nim_gke.sh` with a fixed 1-node GPU pool; see
-[docs/runs/2026-09-27-measured-run.md](runs/2026-09-27-measured-run.md) for
+[docs/runs/2026-09-27-run-1-fixed.md](runs/2026-09-27-run-1-fixed.md) for
 the only verified timings, latency, and cost. Treat every figure in this
 guide that is not sourced from that receipt as a plan, not a result.
 
@@ -146,9 +146,9 @@ gcloud container node-pools resize gpupool --cluster=nim-demo --zone=us-central1
 
 ## Cost Management
 
-See the single cost table in [README cost table](../README.md#cost-and-performance) and the
+See the single cost table in [README cost table](../README.md#measured-results) and the
 measured run's cost breakdown in
-[docs/runs/2026-09-27-measured-run.md](runs/2026-09-27-measured-run.md).
+[docs/runs/2026-09-27-run-1-fixed.md](runs/2026-09-27-run-1-fixed.md).
 This production configuration (autoscaling 0-2 GPU nodes) has not been run
 or costed; only the fixed 1-node deployment in the receipt is measured.
 
@@ -295,7 +295,7 @@ env:
 ./scripts/test_nim_production.sh
 
 # Timing and cost for this autoscaling production path are not measured.
-# See the README "Cost and Performance" table and docs/runs/2026-09-27-measured-run.md
+# See the README "Measured results" table and docs/runs/2026-09-27-run-1-fixed.md
 # for the one measured run (fixed 1-node GPU pool, deploy_nim_gke.sh).
 ```
 

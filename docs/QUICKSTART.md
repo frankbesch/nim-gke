@@ -136,7 +136,7 @@ kubectl delete secret ngc-api -n nim
 
 ### Issue: Model Loading Slow
 
-**Normal**: measured model download and load to Ready took 8 m 39 s in the [run receipt](runs/2026-09-27-measured-run.md)
+**Normal**: measured model download and load to Ready took 8 m 39 s in the [run receipt](runs/2026-09-27-run-1-fixed.md)
 
 **Monitor**:
 ```bash
@@ -147,7 +147,7 @@ kubectl logs -f -n nim $(kubectl get pods -n nim -o jsonpath='{.items[0].metadat
 
 ## 💰 Cost Control
 
-See the [cost and performance table](../README.md#cost-and-performance) for
+See the [cost and performance table](../README.md#measured-results) for
 measured figures: ~$0.98/hour while up, $0.43 for one full run.
 
 **Save money**:
@@ -177,7 +177,7 @@ gcloud container clusters resize nim-demo --num-nodes=0 --zone=us-central1-a --n
 ## 🎓 What You Just Deployed
 
 - **Model**: Meta Llama 3 8B Instruct
-- **Backend**: `vllm-fp16-tp1`, the one profile NIM 1.0.0 offers on the L4 ([run 2](runs/2026-09-27-run-2.md#backend-profile))
+- **Backend**: `vllm-fp16-tp1`, the one profile NIM 1.0.0 offers on the L4 ([run 2](runs/2026-09-27-run-2-fixed.md#backend-profile))
 - **GPU**: NVIDIA L4 (24 GB)
 - **API**: OpenAI-compatible REST API
 - **Scale**: Kubernetes autoscaling ready

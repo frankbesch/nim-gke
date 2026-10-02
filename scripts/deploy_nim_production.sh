@@ -288,7 +288,7 @@ display_success() {
     echo "4️⃣  Cleanup when done:"
     echo "   ./cleanup.sh"
     echo ""
-    echo "💰 Current cost: about \$0.98/hour (measured, docs/runs/2026-09-27-measured-run.md)"
+    echo "💰 Current cost: about \$0.98/hour (measured, docs/runs/2026-09-27-run-1-fixed.md)"
     echo ""
 }
 

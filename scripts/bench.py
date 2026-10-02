@@ -7,7 +7,7 @@ STREAM_N streamed requests (time to first token). Concurrency 1; numbers are
 single-user, n small -- this is not a load test.
 
 This is the script used for the 2026-09-27 measured run
-(docs/runs/2026-09-27-measured-run.md), ported unchanged in method: same
+(docs/runs/2026-09-27-run-1-fixed.md), ported unchanged in method: same
 prompts, same request shapes, same percentile math. Only argparse plumbing
 was added so the run is reproducible without editing constants in the file.
 """

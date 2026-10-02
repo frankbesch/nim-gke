@@ -194,7 +194,7 @@ kubectl get events -n nim --sort-by='.lastTimestamp' | tail -20
 
 **Log message**: `Preparing model workspace. This step might download additional files`
 
-**Expected behavior**: the measured run took 8 m 39 s from container start to Ready ([receipt](../docs/runs/2026-09-27-measured-run.md)).
+**Expected behavior**: the measured run took 8 m 39 s from container start to Ready ([receipt](../docs/runs/2026-09-27-run-1-fixed.md)).
 
 **No action required**: Wait for download to complete.
 

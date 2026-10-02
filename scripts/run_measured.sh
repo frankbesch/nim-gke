@@ -7,7 +7,8 @@
 # was gone; (c) PROJECT_ID and the NGC key must never be hardcoded here
 # (this repo is public) -- both come from the environment.
 #
-# --autoscale adds an unmeasured 0->1(->2)->0 GPU-node autoscale test path
+# --autoscale adds a 0->1(->2)->0 GPU-node autoscale test path (0->1->0 is
+# measured in run 3; the second node is not measured)
 # on top of the same runner: deploy with AUTOSCALE=1 (gpupool starts at 0
 # nodes), wait for the cluster autoscaler to add a GPU node, run the normal
 # Ready-wait/bench, then (with --two-nodes) scale the StatefulSet to 2 and

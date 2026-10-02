@@ -1,8 +1,8 @@
 # Measured run 3: GPU node autoscaling 0→1→0 (2026-09-28)
 
 First measured GPU node-autoscaling run on this repo. Same project, zone,
-chart, image, and hardware as [run 1](2026-09-27-measured-run.md) and
-[run 2](2026-09-27-run-2.md): `nim-llm-1.3.0`,
+chart, image, and hardware as [run 1](2026-09-27-run-1-fixed.md) and
+[run 2](2026-09-27-run-2-fixed.md): `nim-llm-1.3.0`,
 `nvcr.io/nim/meta/llama3-8b-instruct:1.0.0`, `g2-standard-4` with one NVIDIA
 L4, one `e2-standard-4` system node. The difference: `gpupool` is created
 with **0 nodes** and cluster autoscaling (`--num-nodes=0 --enable-autoscaling

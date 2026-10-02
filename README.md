@@ -2,43 +2,75 @@
 
 **NVIDIA NIM inference on Google Kubernetes Engine, on a single L4 GPU**
 
-Reference implementation for deploying an NVIDIA NIM microservice on GKE.
-One full deploy/test/destroy cycle has been measured end to end; see the
-[run receipt](docs/runs/2026-09-27-measured-run.md) for every number in this
-file.
+Shell scripts that deploy an NVIDIA NIM LLM microservice on GKE with NVIDIA's
+Helm chart, send it requests, then delete everything and check that nothing
+is left. The project is a smoke-test harness, not a production platform.
+
+Three runs have been measured end to end: two with a fixed GPU pool and one
+with GPU node autoscaling 0→1→0 on one L4. See
+[run 1](docs/runs/2026-09-27-run-1-fixed.md),
+[run 2](docs/runs/2026-09-27-run-2-fixed.md), and
+[run 3](docs/runs/2026-09-28-run-3-autoscale.md) for every measured number in
+this file.
 
 **Based on**: [Google Codelabs - Deploy an AI model on GKE with NVIDIA NIM](https://codelabs.developers.google.com/codelabs/nvidia-nim-google-cloud)
 
 ---
 
-## What This Adds to the Tutorial
+## Status
 
-- `scripts/config.env`: one settings file every script sources. Only
-  `PROJECT_ID` and `NGC_API_KEY` must be set; everything else has a default
-  and can be overridden by exporting it first.
-- `scripts/preflight.sh`: six read-only checks before touching GCP (NGC key,
-  gcloud auth, image tag, chart fetch, L4 quota, no existing cluster).
-- `set -euo pipefail` in every script.
-- `scripts/bench.py`: the benchmark used for the measured run (20 requests
-  at temperature 0, 5 streamed for time-to-first-token, concurrency 1).
-- `scripts/cleanup.sh`: uninstalls the Helm release, deletes the PVC, deletes
-  the cluster, then lists any leftover disks in the project.
-- A troubleshooting runbook (`runbooks/troubleshooting.md`) and a quick
-  reference (`QUICK_REFERENCE.md`).
-- `scripts/deploy_nim_production.sh`: an alternate path with an autoscaling
-  GPU node pool (0-2 nodes) and a system pool with a minimum of 1 node. This
-  path has **not** been measured; treat its numbers as design targets, not
-  receipts.
-
-**Tutorial compatibility**: the core deployment steps from the
-[Google Codelabs tutorial](https://codelabs.developers.google.com/codelabs/nvidia-nim-google-cloud)
-are preserved.
+| Item | State |
+|------|-------|
+| Measured runs, fixed GPU pool | 2026-09-27: two runs. Deploy and benchmark PASS in both. Run 2's destroy left one disk; the fix is proven in run 3. |
+| Measured run, autoscaling 0 to 1 to 0 | 2026-09-28: PASS, once, on one L4. Scale-up in 1 m 17 s, scale-down in 12 m 32 s, destroy clean. |
+| Posted cost | Cloud Billing report read on 2026-10-02: $1.19 at list cost for every start, $0.95 charged. |
+| Failed starts | Two, plus run 2's failed destroy. The [attempt log](docs/runs/README.md#every-attempt-including-the-failures) lists each with its cause and fix. |
+| Not measured | `deploy_nim_production.sh`, a second GPU node, any GPU other than the L4. |
+| CI | Shellcheck, stubbed tests of the runner, cleanup, and autoscale paths, YAML lint, link check. |
 
 ---
 
-## Architecture
+## Measured results
 
-NIM container → L4 GPU → GKE node pool. NIM picks a backend profile at startup for the detected GPU; on the L4 it found one compatible profile, `vllm-fp16-tp1` (vLLM, FP16), per the [run 2 pod log](docs/runs/2026-09-27-run-2.md#backend-profile).
+Three runs in project `nim-on-gke`, `us-central1-a`, chart `nim-llm-1.3.0`,
+image `nvcr.io/nim/meta/llama3-8b-instruct:1.0.0`, backend profile
+`vllm-fp16-tp1`. This is the only cost and performance table in the repo;
+other docs link here.
+
+| Measure | Run 1, fixed pool | Run 2, fixed pool | Run 3, autoscale 0→1→0 |
+|---------|-------------------|-------------------|------------------------|
+| Date | 2026-09-27 | 2026-09-27 | 2026-09-28 |
+| Script start to pod Ready | 20 m 19 s | 18 m 53 s | 16 m 07 s |
+| Scale-up: pod Pending to GPU node Ready | not applicable | not applicable | 1 m 17 s |
+| Scale-down: zero replicas to no GPU node | not applicable | not applicable | 12 m 32 s |
+| Time to first token, 5 streamed requests | p50 0.29 s, max 0.30 s | p50 0.19 s, max 0.21 s | p50 0.19 s, max 0.20 s |
+| Output throughput, single stream | p50 15.9 tokens/s, min 15.2 | p50 15.9 tokens/s, min 15.5 | p50 15.9 tokens/s, min 15.8 |
+| Latency, 20 requests, 256 max tokens, temp 0 | p50 11.1 s, p95 16.0 s | p50 11.1 s, p95 16.1 s | p50 11.1 s, p95 16.0 s |
+| Destroy | clean, 6 m 35 s | one 50 GiB disk left, 6 m 39 s | clean, 5 m 51 s |
+| Cost estimate at list price | $0.43 | $0.40 | about $0.46 |
+| Posted list cost, by day | about $0.70 for runs 1 and 2 together | see run 1 | about $0.50, with one failed start |
+| Receipt | [run 1](docs/runs/2026-09-27-run-1-fixed.md) | [run 2](docs/runs/2026-09-27-run-2-fixed.md) | [run 3](docs/runs/2026-09-28-run-3-autoscale.md) |
+
+Notes:
+- The estimates use list prices and upper-bound durations. The posted cost is
+  from the Cloud Billing report, read on 2026-10-02. The report splits by
+  day, not by run. [docs/runs/README.md](docs/runs/README.md) has every line.
+- The estimates were high, as upper bounds should be: $0.83 estimated against
+  about $0.70 posted for 2026-09-27.
+- Run 2 used the scripts after the review fixes. Its orphaned disk came from
+  deleting the cluster before the volume. `cleanup.sh` now waits for each
+  volume, and run 3 proves it.
+- In run 3 the GPU node sat idle for the 12 m 32 s scale-down wait. That wait
+  is GKE's own delay and is the price of scale-to-zero here.
+- Twenty requests on one stream is a smoke test, not a load test.
+- 1→2 (`--two-nodes`) needs GPU quota 2 and is not measured.
+  `deploy_nim_production.sh` remains unmeasured.
+
+---
+
+## What it deploys
+
+NIM container → L4 GPU → GKE node pool. NIM picks a backend profile at startup for the detected GPU; on the L4 it found one compatible profile, `vllm-fp16-tp1` (vLLM, FP16), per the [run 2 pod log](docs/runs/2026-09-27-run-2-fixed.md#backend-profile).
 
 **Components**:
 - **Model**: Meta Llama 3 8B Instruct
@@ -47,7 +79,8 @@ NIM container → L4 GPU → GKE node pool. NIM picks a backend profile at start
 - **Orchestration**: Kubernetes StatefulSet via Helm
 - **Compute (measured path, `deploy_nim_gke.sh`)**: one `g2-standard-4` node
   with one NVIDIA L4, plus one `e2-standard-4` system node. Fixed node
-  counts; no autoscaling.
+  counts by default. With `AUTOSCALE=1` the GPU pool starts at 0 nodes and
+  autoscales to 1; run 3 measured that path.
 - **Compute (unmeasured path, `deploy_nim_production.sh`)**: GPU node pool
   autoscales 0-2 nodes; system pool has a minimum of 1 node.
 - **API**: OpenAI-compatible REST (`/v1/chat/completions`)
@@ -59,8 +92,31 @@ lists the NVIDIA L4 (checked 2026-09-27:
 https://docs.nvidia.com/nim/large-language-models/latest/reference/support-matrix.html).
 This repo runs the earlier `llama3-8b-instruct:1.0.0` image on one L4; it is
 off the current matrix and measured working (see the
-[run receipt](docs/runs/2026-09-27-measured-run.md)). Newer chart and image
+[run 1 receipt](docs/runs/2026-09-27-run-1-fixed.md)). Newer chart and image
 versions are not yet tested here.
+
+---
+
+## Cost
+
+Rates for `us-central1`, on demand.
+
+| Line | Rate | Source |
+|------|------|--------|
+| NVIDIA L4 GPU | about $0.56 per hour | Posted: $0.5608 for 1.00 hour |
+| `g2-standard-4` cores and memory | about $0.15 per hour | Posted: 4.01 core-hours and 16.03 GiB-hours for $0.1471 |
+| GPU node, `g2-standard-4` with one L4 | $0.7068 per hour | Cloud Billing Catalog API, read 2026-09-27 |
+| System node, `e2-standard-4` | $0.1340 per hour | Cloud Billing Catalog API, read 2026-09-27 |
+| GKE zonal cluster fee | $0.10 per hour | Credited in full on this account's bill |
+| **Running rate while the deployment is up** | **about $0.98 per hour** | Sum of the lines above plus disks |
+
+- The bill prices the L4, the G2 cores, and the G2 memory as three separate
+  SKUs. Together they match the $0.7068 catalog figure for the node.
+- The system pool keeps a minimum of 1 node, and the cluster fee applies, on
+  the fixed and the autoscaling path alike. There is no "$0 per hour while
+  idle" state short of deleting the cluster.
+- Output cost on the GPU node alone, single stream: about $12 per million
+  output tokens at 15.9 tokens/s.
 
 ---
 
@@ -83,9 +139,9 @@ versions are not yet tested here.
 
 ---
 
-## Deployment
+## Quick start
 
-### Quick Start (measured path)
+### Fixed pool (measured path)
 
 ```bash
 # 1. Set the two required variables
@@ -113,7 +169,7 @@ All other settings (region, zone, cluster name, machine types, chart
 version, release name, namespace) come from `scripts/config.env`. Override
 any of them by exporting the variable before running a script.
 
-### Production Deployment (not measured)
+### Production deployment (not measured)
 
 ```bash
 ./scripts/deploy_nim_production.sh
@@ -122,6 +178,43 @@ any of them by exporting the variable before running a script.
 
 Autoscaling GPU pool (0-2 nodes) and a system pool with a minimum of 1
 node. No timing or cost numbers exist for this path.
+
+---
+
+## Measured run
+
+`scripts/run_measured.sh` runs the whole path once and records it: preflight,
+deploy, wait for Ready, benchmark, cleanup, and a check that nothing is left.
+
+```bash
+export PROJECT_ID='your-gcp-project'
+export NGC_API_KEY='your-key-here'
+scripts/run_measured.sh /tmp/nim-run-fixed
+```
+
+### GPU node autoscaling, 0 to 1 to 0
+
+`--autoscale` creates the GPU pool with no nodes and autoscaling from 0 to 1.
+The pending NIM pod triggers one GPU node. After the benchmark, the runner
+scales NIM to zero replicas and waits for the autoscaler to remove the node.
+
+```bash
+scripts/run_measured.sh --autoscale /tmp/nim-run-autoscale
+```
+
+Scope: one GPU node, measured once, in
+[run 3](docs/runs/2026-09-28-run-3-autoscale.md).
+
+### How the runner ends
+
+- A trap runs cleanup on success, failure, Ctrl-C, and `TERM`.
+- A watchdog runs in its own session, outside the terminal's process tree. It
+  takes over cleanup if the runner dies, and at a time limit.
+- If cleanup cannot be confirmed, the runner leaves the watchdog armed and
+  prints the `gcloud` commands to delete by hand.
+
+The runner's behaviour is tested with stubs in `tests/`. Those tests make no
+cloud call.
 
 ---
 
@@ -144,7 +237,7 @@ curl -X POST http://localhost:8000/v1/chat/completions \
   }'
 ```
 
-This single call is not a benchmark. For measured latency and the method behind it, see the [cost and performance](#cost-and-performance) table and `scripts/bench.py`.
+This single call is not a benchmark. For measured latency and the method behind it, see the [measured results](#measured-results) table and `scripts/bench.py`.
 
 ---
 
@@ -210,40 +303,10 @@ kubectl delete pod my-nim-nim-llm-0 -n nim
 ```
 
 **Model loading slow**:
-- Measured: model download to Ready took 8 m 39 s in the run receipt.
+- Measured: model download to Ready took 8 m 39 s in run 1 and 7 m 24 s in run 2.
 - Monitor: `kubectl logs -f my-nim-nim-llm-0 -n nim`
 
 See `/runbooks/troubleshooting.md` for complete procedures.
-
----
-
-## Repository Structure
-
-```
-nim-gke/
-├── charts/                     # Helm charts and values
-│   └── values-production.yaml  # Production config (chart .tgz is gitignored, fetched at deploy time)
-├── scripts/                    # Deployment and ops scripts
-│   ├── config.env              # Shared settings, sourced by every script
-│   ├── preflight.sh             # Read-only checks before deploy
-│   ├── deploy_nim_gke.sh        # Main (measured) deployment
-│   ├── deploy_nim_production.sh # Autoscaling deployment (not measured)
-│   ├── bench.py                 # Benchmark used for the measured run
-│   ├── test_nim.sh              # Basic smoke test
-│   ├── cleanup.sh               # Resource deletion
-│   └── monitor_deployment.sh    # Status monitoring
-├── docs/                       # Documentation
-│   ├── runs/2026-09-27-measured-run.md  # Measured run 1 (source of truth)
-│   ├── runs/2026-09-27-run-2.md         # Measured run 2, updated scripts
-│   ├── PRODUCTION_GUIDE.md     # Operations manual
-│   ├── GPU_QUOTA_GUIDE.md      # Quota request process
-│   └── QUICKSTART.md
-├── runbooks/                   # Operational procedures
-│   └── troubleshooting.md      # Incident response
-├── examples/                   # Configuration templates
-│   └── set_ngc_key.sh.template # NGC key setup
-└── README.md                   # This file
-```
 
 ---
 
@@ -280,42 +343,6 @@ an optional override.
 
 ---
 
-## Cost and Performance
-
-Measured twice on 2026-09-27 with `deploy_nim_gke.sh`, project `nim-on-gke`,
-`us-central1-a`, chart `nim-llm-1.3.0`, image
-`nvcr.io/nim/meta/llama3-8b-instruct:1.0.0`, backend profile `vllm-fp16-tp1`.
-Run 2 used the scripts after the review fixes. Full detail, methodology, and
-list-price sources: [run 1](docs/runs/2026-09-27-measured-run.md),
-[run 2](docs/runs/2026-09-27-run-2.md).
-This is the only cost/performance table in the repo; other docs link here.
-
-| Metric | Run 1 | Run 2 |
-|--------|-------|-------|
-| Deploy time, script start to pod Ready | 20 m 19 s | 18 m 53 s |
-| Time to first token (5 streamed requests) | p50 0.29 s, max 0.30 s | p50 0.19 s, max 0.21 s |
-| Output throughput, single stream | p50 15.9 tokens/s, min 15.2 | p50 15.9 tokens/s, min 15.5 |
-| Latency, 20 requests, 256 max tokens, temp 0 | p50 11.1 s, p95 16.0 s | p50 11.1 s, p95 16.1 s |
-| Cost for one full deploy + smoke test + destroy | $0.43 | $0.40 (plus an orphaned disk, since fixed in `cleanup.sh`) |
-| Running cost while the deployment is up | ~$0.98/hour | ~$0.98/hour |
-| Output cost, single stream, GPU node only | ~$12 per million output tokens | same |
-
-Notes:
-- `g2-standard-4` with 1× L4 is priced as one bundled SKU: $0.7068/hour
-  (measured 2026-09-27 from the Google Cloud Billing Catalog API). GCP does
-  not price the GPU as a separate line item on this machine type.
-- The system pool (`e2-standard-4`) keeps a minimum of 1 node, and the GKE
-  zonal cluster fee applies, on the fixed and the autoscaling path alike.
-  There is no "$0/hour while idle" state short of deleting the cluster.
-- GPU node autoscaling 0→1→0 is measured (`AUTOSCALE=1`,
-  `run_measured.sh --autoscale`, [run 3](docs/runs/2026-09-28-run-3-autoscale.md)):
-  scale-up from a Pending pod to a Ready L4 node in 1 m 17 s; scale-down to 0
-  nodes 12 m 32 s after replicas=0, of which the GPU node billed idle; about
-  $0.46 for the run at list price. 1→2 (`--two-nodes`) needs GPU quota 2 and
-  is not measured. `deploy_nim_production.sh` remains unmeasured.
-
----
-
 ## Security
 
 - ✅ NGC API key stored as Kubernetes Secret
@@ -323,6 +350,33 @@ Notes:
 - ✅ Service exposed via ClusterIP (internal only)
 - ⚠️ TLS: not configured; would need Ingress + cert-manager
 - ⚠️ Authentication: no API gateway; add one before any production use
+
+---
+
+## What this adds to the tutorial
+
+- `scripts/config.env`: one settings file every script sources. Only
+  `PROJECT_ID` and `NGC_API_KEY` must be set; everything else has a default
+  and can be overridden by exporting it first.
+- `scripts/preflight.sh`: six read-only checks before touching GCP (NGC key,
+  gcloud auth, image tag, chart fetch, L4 quota, no existing cluster).
+- `set -euo pipefail` in every script.
+- `scripts/bench.py`: the benchmark used for the measured runs (20 requests
+  at temperature 0, 5 streamed for time-to-first-token, concurrency 1).
+- `scripts/cleanup.sh`: uninstalls the Helm release, deletes the PVC, deletes
+  the cluster, then lists any leftover disks in the project.
+- `scripts/run_measured.sh`: one command for a whole measured run, with a
+  trap and a watchdog that delete the cluster if the run dies.
+- A troubleshooting runbook (`runbooks/troubleshooting.md`) and a quick
+  reference (`QUICK_REFERENCE.md`).
+- `scripts/deploy_nim_production.sh`: an alternate path with an autoscaling
+  GPU node pool (0-2 nodes) and a system pool with a minimum of 1 node. This
+  path has **not** been measured; treat its numbers as design targets, not
+  receipts.
+
+**Tutorial compatibility**: the core deployment steps from the
+[Google Codelabs tutorial](https://codelabs.developers.google.com/codelabs/nvidia-nim-google-cloud)
+are preserved.
 
 ---
 
@@ -361,14 +415,87 @@ add-on, custom cloud-init, and GPU workloads, read on 2026-10-01. The measured
 runs in each repository's `docs/runs/` show which rows are proven against the
 real API.
 
+### Measured side by side
+
+The two kits were measured on different hardware, so this table is a record
+of what each run did. It is not a benchmark of the two platforms.
+
+| Measure | nimble-oke: OKE, one A10 | nim-gke: GKE, one L4 |
+|---------|--------------------------|----------------------|
+| Measured runs | 2, on 2026-10-01 | 3, on 2026-09-27 and 2026-09-28 |
+| Script start to NIM Ready, fixed pool | 22 min 52 s | 20 min 19 s; 18 min 53 s |
+| Script start to NIM Ready, autoscale | 23 min 04 s | 16 min 07 s |
+| Scale-up: pod Pending to GPU node Ready | 385 s | 77 s |
+| Scale-down: zero replicas to no GPU node | 312 s, with the timers set to 3 minutes | 752 s, with GKE's default delay |
+| Teardown | 6 min 54 s after the drain fix; 30 min 55 s before it | 5 min 51 s to 6 min 39 s |
+| GPU time metered, fixed pool | 15 min 39 s | about 18 min per run |
+| GPU time metered, autoscale | 13 min 52 s | about 24 min |
+| Posted list cost, fixed pool | $0.63 | about $0.70 for the day's two runs |
+| Posted list cost, autoscale | $0.53 | about $0.50 for the day, with one failed start |
+| Posted list cost, every start | $1.17 | $1.19, of which $0.95 was charged after credits |
+| GPU list rate | $2.00 per hour | about $0.56 per hour; $0.71 with its host VM |
+| Output throughput, one stream | 27.6 tokens/s | 15.9 tokens/s |
+
+How to read it:
+
+- The scale-down times are not like for like. The OKE run shortened the
+  autoscaler timers from 10 minutes to 3. The GKE run used the default.
+- The benchmarks differ. The OKE runs sent 5 requests with 128 maximum
+  tokens. The GKE runs sent 20 with 256. The images differ too: 1.0.3 on
+  OKE, 1.0.0 on GKE.
+- OCI reports cost by the hour, so each OKE run has its own posted cost.
+  Google's report splits by day, so the GKE figures are per day.
+- Each figure is one run, or two for the GKE fixed pool. None shows
+  repeatability.
+
+Sources: [nimble-oke receipts](https://github.com/frankbesch/nimble-oke/tree/main/docs/runs)
+and [nim-gke receipts](https://github.com/frankbesch/nim-gke/tree/main/docs/runs).
+The same table appears in both repositories.
+
 ---
 
-## Limitations
+## Repository layout
+
+```
+nim-gke/
+├── charts/                     # Helm charts and values
+│   └── values-production.yaml  # Production config (chart .tgz is gitignored, fetched at deploy time)
+├── scripts/                    # Deployment and ops scripts
+│   ├── config.env              # Shared settings, sourced by every script
+│   ├── preflight.sh             # Read-only checks before deploy
+│   ├── deploy_nim_gke.sh        # Main (measured) deployment
+│   ├── deploy_nim_production.sh # Autoscaling deployment (not measured)
+│   ├── run_measured.sh          # Whole measured run, with trap and watchdog
+│   ├── bench.py                 # Benchmark used for the measured runs
+│   ├── test_nim.sh              # Basic smoke test
+│   ├── cleanup.sh               # Resource deletion
+│   └── monitor_deployment.sh    # Status monitoring
+├── docs/                       # Documentation
+│   ├── runs/README.md                     # Receipt index, attempt log, posted cost
+│   ├── runs/2026-09-27-run-1-fixed.md     # Measured run 1, fixed pool
+│   ├── runs/2026-09-27-run-2-fixed.md     # Measured run 2, updated scripts
+│   ├── runs/2026-09-28-run-3-autoscale.md # Measured run 3, autoscaling 0→1→0
+│   ├── PRODUCTION_GUIDE.md     # Operations manual
+│   ├── GPU_QUOTA_GUIDE.md      # Quota request process
+│   └── QUICKSTART.md
+├── tests/                      # Stubbed tests; no cloud calls
+├── runbooks/                   # Operational procedures
+│   └── troubleshooting.md      # Incident response
+├── examples/                   # Configuration templates
+│   └── set_ngc_key.sh.template # NGC key setup
+└── README.md                   # This file
+```
+
+---
+
+## Known gaps
 
 - **Single GPU**: Multi-GPU tensor parallelism requires code changes
 - **Model size**: Llama 3 8B fits L4. Larger models need A100/H100
 - **Persistence**: Model cached on PV. Deletion triggers re-download
 - **Regional availability**: L4 not in all GCP zones
+- **Repeatability**: two fixed-pool runs and one autoscale run. That is not a repeatability result
+- **Cost by run**: Google's billing report splits by day, so runs 1 and 2 share one posted figure
 - **Off support matrix**: see [Hardware support](#hardware-support) above
 
 ---
@@ -402,4 +529,6 @@ Provided as-is for educational and reference purposes. NVIDIA NIM requires accep
 
 ---
 
-**Last measured**: 2026-09-27 (see [run receipt](docs/runs/2026-09-27-measured-run.md))
+**Last measured**: 2026-09-28. See [run 1](docs/runs/2026-09-27-run-1-fixed.md),
+[run 2](docs/runs/2026-09-27-run-2-fixed.md), and
+[run 3](docs/runs/2026-09-28-run-3-autoscale.md).

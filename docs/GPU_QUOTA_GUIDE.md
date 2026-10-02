@@ -125,9 +125,9 @@ gcloud compute accelerator-types list --filter="zone:us-central1"
 
 ## 💰 Current Costs
 
-See the single cost table in [README cost table](../README.md#cost-and-performance) and the
+See the single cost table in [README cost table](../README.md#measured-results) and the
 measured run's cost breakdown in
-[docs/runs/2026-09-27-measured-run.md](runs/2026-09-27-measured-run.md).
+[docs/runs/2026-09-27-run-1-fixed.md](runs/2026-09-27-run-1-fixed.md).
 
 ---
 
@@ -137,7 +137,7 @@ measured run's cost breakdown in
 ```bash
 # No action needed
 # Costs the control-plane/zonal fee only, no GPU node yet (unverified estimate,
-# not in the measured receipt; see ../README.md#cost-and-performance)
+# not in the measured receipt; see ../README.md#measured-results)
 ```
 
 ### Delete Everything (stop charges)
@@ -152,7 +152,7 @@ gcloud container clusters delete nim-demo --zone=us-central1-a
 ## 🎯 Recommended Next Steps
 
 1. **Request GPU quota now** (link above)
-2. **Keep the cluster running** (unverified estimate, control-plane fee only; see ../README.md#cost-and-performance)
+2. **Keep the cluster running** (unverified estimate, control-plane fee only; see ../README.md#measured-results)
 3. **Check email** for approval notification
 4. **Run `./add_gpu_nodepool.sh`** when approved
 5. **Run `./deploy_nim_only.sh`** to complete deployment

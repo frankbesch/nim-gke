@@ -71,8 +71,8 @@ Against the receipts:
 
 | Run | Mode | Result |
 |---|---|---|
-| [2026-09-27, run 1](2026-09-27-measured-run.md) | Fixed, one `g2-standard-4` with one L4 | PASS: deploy to Ready 20 m 19 s; destroy clean |
-| [2026-09-27, run 2](2026-09-27-run-2.md) | Fixed, updated scripts | Deploy and benchmark PASS; destroy FAIL, one disk left |
+| [2026-09-27, run 1](2026-09-27-run-1-fixed.md) | Fixed, one `g2-standard-4` with one L4 | PASS: deploy to Ready 20 m 19 s; destroy clean |
+| [2026-09-27, run 2](2026-09-27-run-2-fixed.md) | Fixed, updated scripts | Deploy and benchmark PASS; destroy FAIL, one disk left |
 | [2026-09-28, run 3](2026-09-28-run-3-autoscale.md) | Autoscale, GPU pool 0 to 1 to 0 | PASS: scale-up 1 m 17 s, scale-down 12 m 32 s; destroy clean |
 
 ## Every attempt, including the failures

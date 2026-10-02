@@ -83,7 +83,7 @@ REQUIRED_DOCS=(
   "docs/PRODUCTION_GUIDE.md"
   "docs/GPU_QUOTA_GUIDE.md"
   "runbooks/troubleshooting.md"
-  "docs/runs/2026-09-27-measured-run.md"
+  "docs/runs/2026-09-27-run-1-fixed.md"
 )
 
 for doc in "${REQUIRED_DOCS[@]}"; do

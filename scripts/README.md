@@ -10,7 +10,7 @@ other value has a default and can be overridden by exporting it first).
 
 ### `deploy_nim_gke.sh`
 
-**Purpose**: Main deployment script. Creates GKE cluster, GPU node pool, and NIM deployment. This is the measured path (see `docs/runs/2026-09-27-measured-run.md`).
+**Purpose**: Main deployment script. Creates GKE cluster, GPU node pool, and NIM deployment. This is the measured path (see `docs/runs/2026-09-27-run-1-fixed.md`).
 
 **Prerequisites**: `NGC_API_KEY` set, gcloud authenticated, GPU quota approved. Run `preflight.sh` first.
 
@@ -21,7 +21,7 @@ export PROJECT_ID='your-gcp-project'
 ./scripts/deploy_nim_gke.sh
 ```
 
-**Duration**: measured 20 m 19 s, script start to pod Ready (docs/runs/2026-09-27-measured-run.md).
+**Duration**: measured 20 m 19 s, script start to pod Ready (docs/runs/2026-09-27-run-1-fixed.md).
 
 **What it does**:
 1. Validates tools (gcloud, kubectl, helm)
@@ -214,7 +214,7 @@ exactly as before.
 
 ### `bench.py`
 
-**Purpose**: Benchmark script used for the measured run (`docs/runs/2026-09-27-measured-run.md`): 20 requests at temperature 0, 5 of them streamed to measure time to first token, concurrency 1.
+**Purpose**: Benchmark script used for the measured run (`docs/runs/2026-09-27-run-1-fixed.md`): 20 requests at temperature 0, 5 of them streamed to measure time to first token, concurrency 1.
 
 **Prerequisites**: Port-forward active.
 
@@ -422,5 +422,5 @@ If scripts fail, check:
 
 ---
 
-**Measured run**: 2026-09-27 (`docs/runs/2026-09-27-measured-run.md`)
+**Measured run**: 2026-09-27 (`docs/runs/2026-09-27-run-1-fixed.md`)
 

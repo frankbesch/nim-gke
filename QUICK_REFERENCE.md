@@ -15,7 +15,7 @@ cd ~/nim-gke
 ```
 
 **Duration**: measured 20 m 19 s (script start to pod Ready)
-**Cost**: see the [cost and performance table in README](README.md#cost-and-performance)
+**Cost**: see the [cost and performance table in README](README.md#measured-results)
 
 ---
 
@@ -62,7 +62,7 @@ kubectl top pod -n nim
 
 ## 💰 Cost Tracking
 
-See the [cost and performance table in README](README.md#cost-and-performance)
+See the [cost and performance table in README](README.md#measured-results)
 for measured figures. Summary: ~$0.98/hour while up, $0.43 for one full
 deploy/test/destroy run. The system pool keeps a minimum of 1 node, so
 there is no idle-but-running $0/hour state; only a deleted cluster is $0.
