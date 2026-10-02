@@ -1,9 +1,29 @@
 # Measured runs
 
 Each Markdown file here is the receipt of one live run against a real Google
-Cloud project. Costs in these receipts are estimates at list prices from the
-Cloud Billing Catalog API. They have not been reconciled against the Cloud
-Billing report.
+Cloud project. Costs in the receipts are estimates at list prices from the
+Cloud Billing Catalog API, with durations as upper bounds.
+
+## Posted cost
+
+The Cloud Billing report for 2026-09-26 to 2026-09-30, read on 2026-10-02,
+covers all five starts below. The report groups by service, not by run, so
+the receipts keep their per-run estimates.
+
+| Service | List cost | Credits | Charged |
+|---|---|---|---|
+| Compute Engine | $0.94 | $0.00 | $0.94 |
+| Kubernetes Engine | $0.19 | -$0.19 | $0.00 |
+| Networking | $0.05 | -$0.05 | $0.00 |
+| Cloud Monitoring | $0.01 | $0.00 | $0.01 |
+| **Total** | **$1.19** | **-$0.24** | **$0.95** |
+
+The estimates for the same starts sum to about $1.34. They were high by about
+$0.15 at list cost, as an upper bound should be. The credit covered the whole
+cluster fee, which run 1's receipt had marked as not verified. The estimates
+left out networking and monitoring, $0.06 together.
+
+## Receipts
 
 | Run | Mode | Result |
 |---|---|---|
