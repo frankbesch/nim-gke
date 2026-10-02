@@ -19,14 +19,12 @@ this file.
 
 ## Status
 
-| Item | State |
-|------|-------|
-| Measured runs, fixed GPU pool | 2026-09-27: two runs. Deploy and benchmark PASS in both. Run 2's destroy left one disk; the fix is proven in run 3. |
-| Measured run, autoscaling 0 to 1 to 0 | 2026-09-28: PASS, once, on one L4. Scale-up in 1 m 17 s, scale-down in 12 m 32 s, destroy clean. |
-| Posted cost | Cloud Billing report read on 2026-10-02: $1.19 at list cost for every start, $0.95 charged. |
-| Failed starts | Two, plus run 2's failed destroy. The [attempt log](docs/runs/README.md#every-attempt-including-the-failures) lists each with its cause and fix. |
-| Not measured | `deploy_nim_production.sh`, a second GPU node, any GPU other than the L4. |
-| CI | Shellcheck, stubbed tests of the runner, cleanup, and autoscale paths, YAML lint, link check. |
+- **Measured runs, fixed GPU pool:** 2026-09-27: two runs. Deploy and benchmark PASS in both. Run 2's destroy left one disk; the fix is proven in run 3.
+- **Measured run, autoscaling 0 to 1 to 0:** 2026-09-28: PASS, once, on one L4. Scale-up in 1 m 17 s, scale-down in 12 m 32 s, destroy clean.
+- **Posted cost:** Cloud Billing report read on 2026-10-02: $1.19 at list cost for every start, $0.95 charged.
+- **Failed starts:** Two, plus run 2's failed destroy. The [attempt log](docs/runs/README.md#every-attempt-including-the-failures) lists each with its cause and fix.
+- **Not measured:** `deploy_nim_production.sh`, a second GPU node, any GPU other than the L4.
+- **CI:** Shellcheck, stubbed tests of the runner, cleanup, and autoscale paths, YAML lint, link check.
 
 ---
 
@@ -34,22 +32,56 @@ this file.
 
 Three runs in project `nim-on-gke`, `us-central1-a`, chart `nim-llm-1.3.0`,
 image `nvcr.io/nim/meta/llama3-8b-instruct:1.0.0`, backend profile
-`vllm-fp16-tp1`. This is the only cost and performance table in the repo;
+`vllm-fp16-tp1`. These are the only cost and performance tables in the repo;
 other docs link here.
 
-| Measure | Run 1, fixed pool | Run 2, fixed pool | Run 3, autoscale 0→1→0 |
-|---------|-------------------|-------------------|------------------------|
-| Date | 2026-09-27 | 2026-09-27 | 2026-09-28 |
-| Script start to pod Ready | 20 m 19 s | 18 m 53 s | 16 m 07 s |
-| Scale-up: pod Pending to GPU node Ready | not applicable | not applicable | 1 m 17 s |
-| Scale-down: zero replicas to no GPU node | not applicable | not applicable | 12 m 32 s |
-| Time to first token, 5 streamed requests | p50 0.29 s, max 0.30 s | p50 0.19 s, max 0.21 s | p50 0.19 s, max 0.20 s |
-| Output throughput, single stream | p50 15.9 tokens/s, min 15.2 | p50 15.9 tokens/s, min 15.5 | p50 15.9 tokens/s, min 15.8 |
-| Latency, 20 requests, 256 max tokens, temp 0 | p50 11.1 s, p95 16.0 s | p50 11.1 s, p95 16.1 s | p50 11.1 s, p95 16.0 s |
-| Destroy | clean, 6 m 35 s | one 50 GiB disk left, 6 m 39 s | clean, 5 m 51 s |
-| Cost estimate at list price | $0.43 | $0.40 | about $0.46 |
-| Posted list cost, by day | about $0.70 for runs 1 and 2 together | see run 1 | about $0.50, with one failed start |
-| Receipt | [run 1](docs/runs/2026-09-27-run-1-fixed.md) | [run 2](docs/runs/2026-09-27-run-2-fixed.md) | [run 3](docs/runs/2026-09-28-run-3-autoscale.md) |
+### Run 1, fixed pool
+
+| Measure | Value |
+|---|---|
+| Date | 2026-09-27 |
+| Script start to pod Ready | 20 m 19 s |
+| Scale-up: pod Pending to GPU node Ready | not applicable |
+| Scale-down: zero replicas to no GPU node | not applicable |
+| Time to first token, 5 streamed requests | p50 0.29 s, max 0.30 s |
+| Output throughput, single stream | p50 15.9 tokens/s, min 15.2 |
+| Latency, 20 requests, 256 max tokens, temp 0 | p50 11.1 s, p95 16.0 s |
+| Destroy | clean, 6 m 35 s |
+| Cost estimate at list price | $0.43 |
+| Posted list cost, by day | about $0.70 for runs 1 and 2 together |
+| Receipt | [run 1](docs/runs/2026-09-27-run-1-fixed.md) |
+
+### Run 2, fixed pool
+
+| Measure | Value |
+|---|---|
+| Date | 2026-09-27 |
+| Script start to pod Ready | 18 m 53 s |
+| Scale-up: pod Pending to GPU node Ready | not applicable |
+| Scale-down: zero replicas to no GPU node | not applicable |
+| Time to first token, 5 streamed requests | p50 0.19 s, max 0.21 s |
+| Output throughput, single stream | p50 15.9 tokens/s, min 15.5 |
+| Latency, 20 requests, 256 max tokens, temp 0 | p50 11.1 s, p95 16.1 s |
+| Destroy | one 50 GiB disk left, 6 m 39 s |
+| Cost estimate at list price | $0.40 |
+| Posted list cost, by day | see run 1 |
+| Receipt | [run 2](docs/runs/2026-09-27-run-2-fixed.md) |
+
+### Run 3, autoscale 0→1→0
+
+| Measure | Value |
+|---|---|
+| Date | 2026-09-28 |
+| Script start to pod Ready | 16 m 07 s |
+| Scale-up: pod Pending to GPU node Ready | 1 m 17 s |
+| Scale-down: zero replicas to no GPU node | 12 m 32 s |
+| Time to first token, 5 streamed requests | p50 0.19 s, max 0.20 s |
+| Output throughput, single stream | p50 15.9 tokens/s, min 15.8 |
+| Latency, 20 requests, 256 max tokens, temp 0 | p50 11.1 s, p95 16.0 s |
+| Destroy | clean, 5 m 51 s |
+| Cost estimate at list price | about $0.46 |
+| Posted list cost, by day | about $0.50, with one failed start |
+| Receipt | [run 3](docs/runs/2026-09-28-run-3-autoscale.md) |
 
 Notes:
 - The estimates use list prices and upper-bound durations. The posted cost is
@@ -70,7 +102,7 @@ Notes:
 
 ## What it deploys
 
-<picture><source media="(prefers-color-scheme: dark)" srcset="docs/diagrams/deploys-dark.svg"/><img src="docs/diagrams/deploys-light.svg" alt="Architecture: a client calls the NIM pod inside the GKE cluster; the pod pulls its image from NGC, stores model files on a persistent disk, and runs on one GPU node that the cluster autoscaler adds and removes."/></picture>
+<picture><source media="(prefers-color-scheme: dark)" srcset="docs/diagrams/deploys-dark.svg"/><img width="420" src="docs/diagrams/deploys-light.svg" alt="Architecture: a client calls the NIM pod inside the GKE cluster; the pod pulls its image from NGC, stores model files on a persistent disk, and runs on one GPU node that the cluster autoscaler adds and removes."/></picture>
 
 <details><summary>Text version of this diagram</summary>
 
@@ -109,14 +141,14 @@ versions are not yet tested here.
 
 Rates for `us-central1`, on demand.
 
-| Line | Rate | Source |
-|------|------|--------|
-| NVIDIA L4 GPU | about $0.56 per hour | Posted: $0.5608 for 1.00 hour |
-| `g2-standard-4` cores and memory | about $0.15 per hour | Posted: 4.01 core-hours and 16.03 GiB-hours for $0.1471 |
-| GPU node, `g2-standard-4` with one L4 | $0.7068 per hour | Cloud Billing Catalog API, read 2026-09-27 |
-| System node, `e2-standard-4` | $0.1340 per hour | Cloud Billing Catalog API, read 2026-09-27 |
-| GKE zonal cluster fee | $0.10 per hour | Credited in full on this account's bill |
-| **Running rate while the deployment is up** | **about $0.98 per hour** | Sum of the lines above plus disks |
+- **NVIDIA L4 GPU:** about $0.56 per hour (Posted: $0.5608 for 1.00 hour)
+- **`g2-standard-4` cores and memory:** about $0.15 per hour (Posted: 4.01 core-hours and 16.03 GiB-hours for $0.1471)
+- **GPU node, `g2-standard-4` with one L4:** $0.7068 per hour (Cloud Billing Catalog API, read 2026-09-27)
+- **System node, `e2-standard-4`:** $0.1340 per hour (Cloud Billing Catalog API, read 2026-09-27)
+- **GKE zonal cluster fee:** $0.10 per hour (Credited in full on this account's bill)
+- **Running rate while the deployment is up:** about $0.98 per hour (Sum of the lines above plus disks)
+
+Notes:
 
 - The bill prices the L4, the G2 cores, and the G2 memory as three separate
   SKUs. Together they match the $0.7068 catalog figure for the node.
@@ -151,27 +183,54 @@ Rates for `us-central1`, on demand.
 
 ### Fixed pool (measured path)
 
-```bash
-# 1. Set the two required variables
-export NGC_API_KEY='your-key-here'
-export PROJECT_ID='your-gcp-project'
+1. Set the two required variables.
 
-# 2. Preflight checks (read-only)
-./scripts/preflight.sh
+   ```bash
+   export NGC_API_KEY='your-key-here'
+   export PROJECT_ID='your-gcp-project'
+   ```
 
-# 3. Deploy
-./scripts/deploy_nim_gke.sh
+2. Run the preflight checks (read-only).
 
-# 4. Verify
-kubectl get pods -n nim
-kubectl port-forward -n nim svc/my-nim-nim-llm 8000:8000
+   ```bash
+   ./scripts/preflight.sh
+   ```
 
-# 5. Test
-./scripts/test_nim.sh          # or: python3 scripts/bench.py
+3. Deploy.
 
-# 6. Tear down
-./scripts/cleanup.sh
-```
+   ```bash
+   ./scripts/deploy_nim_gke.sh
+   ```
+
+4. Verify the pod.
+
+   ```bash
+   kubectl get pods -n nim
+   ```
+
+   Forward the service port.
+
+   ```bash
+   kubectl port-forward -n nim svc/my-nim-nim-llm 8000:8000
+   ```
+
+5. Test.
+
+   ```bash
+   ./scripts/test_nim.sh
+   ```
+
+   Or run the benchmark.
+
+   ```bash
+   python3 scripts/bench.py
+   ```
+
+6. Tear down.
+
+   ```bash
+   ./scripts/cleanup.sh
+   ```
 
 All other settings (region, zone, cluster name, machine types, chart
 version, release name, namespace) come from `scripts/config.env`. Override
@@ -179,8 +238,15 @@ any of them by exporting the variable before running a script.
 
 ### Production deployment (not measured)
 
+Deploy:
+
 ```bash
 ./scripts/deploy_nim_production.sh
+```
+
+Test:
+
+```bash
 ./scripts/test_nim_production.sh
 ```
 
@@ -194,15 +260,22 @@ node. No timing or cost numbers exist for this path.
 `scripts/run_measured.sh` runs the whole path once and records it: preflight,
 deploy, wait for Ready, benchmark, cleanup, and a check that nothing is left.
 
+Set the two required variables:
+
 ```bash
 export PROJECT_ID='your-gcp-project'
 export NGC_API_KEY='your-key-here'
+```
+
+Start the run:
+
+```bash
 scripts/run_measured.sh /tmp/nim-run-fixed
 ```
 
 ### GPU node autoscaling, 0 to 1 to 0
 
-<picture><source media="(prefers-color-scheme: dark)" srcset="docs/diagrams/autoscale-dark.svg"/><img src="docs/diagrams/autoscale-light.svg" alt="Chart: the GPU node pool goes from 0 nodes to 1 and back to 0, with the measured scale-up and scale-down times."/></picture>
+<picture><source media="(prefers-color-scheme: dark)" srcset="docs/diagrams/autoscale-dark.svg"/><img width="420" src="docs/diagrams/autoscale-light.svg" alt="Chart: the GPU node pool goes from 0 nodes to 1 and back to 0, with the measured scale-up and scale-down times."/></picture>
 
 <details><summary>Text version of this diagram</summary>
 
@@ -223,7 +296,7 @@ Scope: one GPU node, measured once, in
 
 ### How the runner ends
 
-<picture><source media="(prefers-color-scheme: dark)" srcset="docs/diagrams/runner-ends-dark.svg"/><img src="docs/diagrams/runner-ends-light.svg" alt="Workflow: start the runner, arm the watchdog, run the steps, clean up, then exit when cleanup is confirmed; otherwise print the manual delete commands with the watchdog still armed."/></picture>
+<picture><source media="(prefers-color-scheme: dark)" srcset="docs/diagrams/runner-ends-dark.svg"/><img width="420" src="docs/diagrams/runner-ends-light.svg" alt="Workflow: start the runner, arm the watchdog, run the steps, clean up, then exit when cleanup is confirmed; otherwise print the manual delete commands with the watchdog still armed."/></picture>
 
 <details><summary>Text version of this diagram</summary>
 
@@ -244,14 +317,21 @@ cloud call.
 
 ## Verify
 
+Health check:
+
 ```bash
-# Health check
 curl http://localhost:8000/v1/health/ready
+```
 
-# List models
+List models:
+
+```bash
 curl http://localhost:8000/v1/models
+```
 
-# Inference test
+Inference test:
+
+```bash
 curl -X POST http://localhost:8000/v1/chat/completions \
   -H 'Content-Type: application/json' \
   -d '{
@@ -261,7 +341,7 @@ curl -X POST http://localhost:8000/v1/chat/completions \
   }'
 ```
 
-This single call is not a benchmark. For measured latency and the method behind it, see the [measured results](#measured-results) table and `scripts/bench.py`.
+This single call is not a benchmark. For measured latency and the method behind it, see the [measured results](#measured-results) and `scripts/bench.py`.
 
 ---
 
@@ -269,28 +349,42 @@ This single call is not a benchmark. For measured latency and the method behind 
 
 ### Monitor
 
+Pod status:
+
 ```bash
-# Pod status
 kubectl get pods -n nim -w
+```
 
-# Logs
+Logs:
+
+```bash
 kubectl logs -f my-nim-nim-llm-0 -n nim
+```
 
-# GPU utilization
+GPU utilization:
+
+```bash
 kubectl exec -n nim my-nim-nim-llm-0 -- nvidia-smi
+```
 
-# Resource usage
+Resource usage:
+
+```bash
 kubectl top pod -n nim
 ```
 
 ### Scale
 
-```bash
-# Manual scale (StatefulSet)
-# Each replica needs its own L4; with the default 1-node GPU pool a 2nd replica stays Pending.
-kubectl scale statefulset my-nim-nim-llm --replicas=2 -n nim
+Manual scale (StatefulSet). Each replica needs its own L4; with the default
+1-node GPU pool a 2nd replica stays Pending.
 
-# GPU node pool resize
+```bash
+kubectl scale statefulset my-nim-nim-llm --replicas=2 -n nim
+```
+
+GPU node pool resize:
+
+```bash
 gcloud container node-pools resize gpupool \
   --cluster=nim-demo \
   --zone=us-central1-a \
@@ -299,11 +393,15 @@ gcloud container node-pools resize gpupool \
 
 ### Cost Control
 
-```bash
-# Remove deployment (keep cluster)
-helm uninstall my-nim -n nim
+Remove deployment (keep cluster):
 
-# Delete cluster, PVC, and list leftover disks
+```bash
+helm uninstall my-nim -n nim
+```
+
+Delete cluster, PVC, and list leftover disks:
+
+```bash
 ./scripts/cleanup.sh
 ```
 
@@ -312,17 +410,30 @@ helm uninstall my-nim -n nim
 ## Troubleshoot
 
 **Pod stuck in Pending**:
+
 ```bash
 kubectl describe pod -n nim my-nim-nim-llm-0
-# Check: GPU availability, node readiness, quotas
 ```
 
+Check: GPU availability, node readiness, quotas.
+
 **ImagePullBackOff** (image pulls use `registry-secret`):
+
 ```bash
 kubectl get secret registry-secret -n nim
-# Recreate both secrets if needed
-PROJECT_ID="${PROJECT_ID:-x}" source scripts/config.env   # run from the repo root
-ngc_apply_secrets nim   # recreates registry-secret and ngc-api; key stays off the command line
+```
+
+Recreate both secrets if needed. Run this from the repo root. It recreates
+`registry-secret` and `ngc-api`; the key stays off the command line.
+
+```bash
+PROJECT_ID="${PROJECT_ID:-x}" source scripts/config.env
+ngc_apply_secrets nim
+```
+
+Restart the pod:
+
+```bash
 kubectl delete pod my-nim-nim-llm-0 -n nim
 ```
 
@@ -351,19 +462,17 @@ must be exported. `NGC_API_KEY` must be exported too (see
 [Prerequisites](#prerequisites) for the fallback). Everything else below is
 an optional override.
 
-| Variable | Default | Purpose |
-|----------|---------|---------|
-| `PROJECT_ID` | *(required, no default)* | GCP project |
-| `NGC_API_KEY` | *(required)* | NIM registry auth |
-| `REGION` | `us-central1` | GCP region |
-| `ZONE` | `us-central1-a` | GKE zone |
-| `CLUSTER_NAME` | `nim-demo` | Cluster identifier |
-| `GPU_TYPE` | `nvidia-l4` | GPU accelerator type |
-| `NODE_POOL_MACHINE_TYPE` | `g2-standard-4` | GPU node instance type |
-| `CLUSTER_MACHINE_TYPE` | `e2-standard-4` | System node instance type |
-| `NIM_CHART_VERSION` | `1.3.0` | Helm chart version |
-| `NIM_RELEASE_NAME` | `my-nim` | Helm release name |
-| `NIM_NAMESPACE` | `nim` | Kubernetes namespace |
+- `PROJECT_ID` *(required, no default)*: GCP project
+- `NGC_API_KEY` *(required)*: NIM registry auth
+- `REGION` (default `us-central1`): GCP region
+- `ZONE` (default `us-central1-a`): GKE zone
+- `CLUSTER_NAME` (default `nim-demo`): Cluster identifier
+- `GPU_TYPE` (default `nvidia-l4`): GPU accelerator type
+- `NODE_POOL_MACHINE_TYPE` (default `g2-standard-4`): GPU node instance type
+- `CLUSTER_MACHINE_TYPE` (default `e2-standard-4`): System node instance type
+- `NIM_CHART_VERSION` (default `1.3.0`): Helm chart version
+- `NIM_RELEASE_NAME` (default `my-nim`): Helm release name
+- `NIM_NAMESPACE` (default `nim`): Kubernetes namespace
 
 ---
 
@@ -409,27 +518,51 @@ are preserved.
 This kit has a companion, [nimble-oke](https://github.com/frankbesch/nimble-oke),
 that does the same job on Oracle Kubernetes Engine: deploy NIM with Helm,
 track cost, clean up, and measure GPU node autoscaling. The two platforms
-reach the same result. OKE needs more explicit setup. The table lists what
+reach the same result. OKE needs more explicit setup. The list shows what
 each kit has to do itself.
 
-| Task | GKE, nim-gke | OKE, nimble-oke |
-|------|--------------|-----------------|
-| Hardware and image | `g2-standard-4`, one NVIDIA L4 (24 GB). NVIDIA's `nim-llm` chart 1.3.0. `llama3-8b-instruct:1.0.0`. | `VM.GPU.A10.1`, one NVIDIA A10 (24 GB). Own Helm chart. `llama3-8b-instruct:1.0.3`. |
-| Network rules for node registration | GKE creates the ingress firewall rules when it creates the cluster. The kit sets none. | The kit creates two security lists: workers to the API endpoint on 6443 and 12250, the control plane to workers, and node to node. |
-| Subnets | The kit passes no network flags and uses the project's default network. | The kit creates an API endpoint subnet and a worker subnet. A node pool cannot use the cluster's service load-balancer subnet. |
-| Root filesystem | The kit uses the default boot disk and has no resize step. | The GPU node pool runs `oci-growfs` in cloud-init. Without it the root filesystem stays near 35 GB whatever the boot volume size. |
-| GPU drivers and device plugin | The node pool sets `gpu-driver-version`, and GKE installs the drivers. The kit applies no device plugin. | The GPU node image carries the drivers. The kit checks for an allocatable GPU and applies the NVIDIA device plugin if none is reported. |
-| GPU taint and toleration | GKE adds the taint `nvidia.com/gpu=present:NoSchedule` and adds the toleration to pods that request a GPU. | The autoscaler treats GPU nodes as tainted `nvidia.com/gpu:NoSchedule`. The chart carries the toleration. |
-| System node | The default CPU node pool runs system pods. Google states that a Standard cluster keeps at least one node for them. | One CPU node pool that the autoscaler does not manage. Oracle requires it to run the autoscaler and cluster add-ons. |
-| Cluster autoscaler | Three flags on the node pool: `--enable-autoscaling`, `--min-nodes`, `--max-nodes`. The kit deploys no autoscaler. | The kit installs the Cluster Autoscaler add-on with `min:max:pool` and its scale-down timers. |
-| Autoscaler permissions | The kit creates none. | A dynamic group and a six-statement policy, created once by the account owner. IAM writes go to the tenancy's home region. |
-| GPU pool from zero nodes | Measured once: 0 to 1 to 0 on one L4, in nim-gke run 3. | Measured once: 0 to 1 to 0 on one A10, in nimble-oke run 2. Oracle's documentation does not state it. The pool carries a tag that tells the autoscaler the node's storage. |
-| GPU quota | A project quota, `GPUS_ALL_REGIONS`, plus the regional GPU quota. | A service limit per availability domain, `gpu-a10-count`. The default is 0. |
-| Confirming a delete | `gcloud` waits for the delete. The kit then checks for a leftover model-store disk. | A delete returns a work request. The kit waits for it, then polls the resource state. A node pool delete drains nodes for up to 60 minutes by default; the kit passes a zero grace period at teardown. |
-| Cluster fee | The zonal cluster fee applies on both paths. | $0.10 per hour for an enhanced cluster. Basic clusters are free and cannot run the add-on. |
+- **Hardware and image**
+  - **GKE:** `g2-standard-4`, one NVIDIA L4 (24 GB). NVIDIA's `nim-llm` chart 1.3.0. `llama3-8b-instruct:1.0.0`.
+  - **OKE:** `VM.GPU.A10.1`, one NVIDIA A10 (24 GB). Own Helm chart. `llama3-8b-instruct:1.0.3`.
+- **Network rules for node registration**
+  - **GKE:** GKE creates the ingress firewall rules when it creates the cluster. The kit sets none.
+  - **OKE:** The kit creates two security lists: workers to the API endpoint on 6443 and 12250, the control plane to workers, and node to node.
+- **Subnets**
+  - **GKE:** The kit passes no network flags and uses the project's default network.
+  - **OKE:** The kit creates an API endpoint subnet and a worker subnet. A node pool cannot use the cluster's service load-balancer subnet.
+- **Root filesystem**
+  - **GKE:** The kit uses the default boot disk and has no resize step.
+  - **OKE:** The GPU node pool runs `oci-growfs` in cloud-init. Without it the root filesystem stays near 35 GB whatever the boot volume size.
+- **GPU drivers and device plugin**
+  - **GKE:** The node pool sets `gpu-driver-version`, and GKE installs the drivers. The kit applies no device plugin.
+  - **OKE:** The GPU node image carries the drivers. The kit checks for an allocatable GPU and applies the NVIDIA device plugin if none is reported.
+- **GPU taint and toleration**
+  - **GKE:** GKE adds the taint `nvidia.com/gpu=present:NoSchedule` and adds the toleration to pods that request a GPU.
+  - **OKE:** The autoscaler treats GPU nodes as tainted `nvidia.com/gpu:NoSchedule`. The chart carries the toleration.
+- **System node**
+  - **GKE:** The default CPU node pool runs system pods. Google states that a Standard cluster keeps at least one node for them.
+  - **OKE:** One CPU node pool that the autoscaler does not manage. Oracle requires it to run the autoscaler and cluster add-ons.
+- **Cluster autoscaler**
+  - **GKE:** Three flags on the node pool: `--enable-autoscaling`, `--min-nodes`, `--max-nodes`. The kit deploys no autoscaler.
+  - **OKE:** The kit installs the Cluster Autoscaler add-on with `min:max:pool` and its scale-down timers.
+- **Autoscaler permissions**
+  - **GKE:** The kit creates none.
+  - **OKE:** A dynamic group and a six-statement policy, created once by the account owner. IAM writes go to the tenancy's home region.
+- **GPU pool from zero nodes**
+  - **GKE:** Measured once: 0 to 1 to 0 on one L4, in nim-gke run 3.
+  - **OKE:** Measured once: 0 to 1 to 0 on one A10, in nimble-oke run 2. Oracle's documentation does not state it. The pool carries a tag that tells the autoscaler the node's storage.
+- **GPU quota**
+  - **GKE:** A project quota, `GPUS_ALL_REGIONS`, plus the regional GPU quota.
+  - **OKE:** A service limit per availability domain, `gpu-a10-count`. The default is 0.
+- **Confirming a delete**
+  - **GKE:** `gcloud` waits for the delete. The kit then checks for a leftover model-store disk.
+  - **OKE:** A delete returns a work request. The kit waits for it, then polls the resource state. A node pool delete drains nodes for up to 60 minutes by default; the kit passes a zero grace period at teardown.
+- **Cluster fee**
+  - **GKE:** The zonal cluster fee applies on both paths.
+  - **OKE:** $0.10 per hour for an enhanced cluster. Basic clusters are free and cannot run the add-on.
 
 None of these is a defect in either platform. They are the steps a script
-must own on OKE and can leave to the platform on GKE. The same table appears
+must own on OKE and can leave to the platform on GKE. The same list appears
 in both repositories.
 
 Sources: each kit's own scripts for what the kit does. For platform
@@ -441,7 +574,7 @@ real API.
 
 ### Measured side by side
 
-<picture><source media="(prefers-color-scheme: dark)" srcset="docs/diagrams/measured-dark.svg"/><img src="docs/diagrams/measured-light.svg" alt="Chart: four measures side by side for nimble-oke on OKE and nim-gke on GKE."/></picture>
+<picture><source media="(prefers-color-scheme: dark)" srcset="docs/diagrams/measured-dark.svg"/><img width="420" src="docs/diagrams/measured-light.svg" alt="Chart: four measures side by side for nimble-oke on OKE and nim-gke on GKE."/></picture>
 
 <details><summary>Text version of this diagram</summary>
 
@@ -449,24 +582,48 @@ Scale-up 385 s on OKE and 77 s on GKE. Scale-down 312 s on OKE with timers set t
 
 </details>
 
-The two kits were measured on different hardware, so this table is a record
+The two kits were measured on different hardware, so this list is a record
 of what each run did. It is not a benchmark of the two platforms.
 
-| Measure | nimble-oke: OKE, one A10 | nim-gke: GKE, one L4 |
-|---------|--------------------------|----------------------|
-| Measured runs | 2, on 2026-10-01 | 3, on 2026-09-27 and 2026-09-28 |
-| Script start to NIM Ready, fixed pool | 22 min 52 s | 20 min 19 s; 18 min 53 s |
-| Script start to NIM Ready, autoscale | 23 min 04 s | 16 min 07 s |
-| Scale-up: pod Pending to GPU node Ready | 385 s | 77 s |
-| Scale-down: zero replicas to no GPU node | 312 s, with the timers set to 3 minutes | 752 s, with GKE's default delay |
-| Teardown | 6 min 54 s after the drain fix; 30 min 55 s before it | 5 min 51 s to 6 min 39 s |
-| GPU time metered, fixed pool | 15 min 39 s | about 18 min per run |
-| GPU time metered, autoscale | 13 min 52 s | about 24 min |
-| Posted list cost, fixed pool | $0.63 | about $0.70 for the day's two runs |
-| Posted list cost, autoscale | $0.53 | about $0.50 for the day, with one failed start |
-| Posted list cost, every start | $1.17 | $1.19, of which $0.95 was charged after credits |
-| GPU list rate | $2.00 per hour | about $0.56 per hour; $0.71 with its host VM |
-| Output throughput, one stream | 27.6 tokens/s | 15.9 tokens/s |
+- **Measured runs**
+  - OKE, one A10: 2, on 2026-10-01
+  - GKE, one L4: 3, on 2026-09-27 and 2026-09-28
+- **Script start to NIM Ready, fixed pool**
+  - OKE, one A10: 22 min 52 s
+  - GKE, one L4: 20 min 19 s; 18 min 53 s
+- **Script start to NIM Ready, autoscale**
+  - OKE, one A10: 23 min 04 s
+  - GKE, one L4: 16 min 07 s
+- **Scale-up: pod Pending to GPU node Ready**
+  - OKE, one A10: 385 s
+  - GKE, one L4: 77 s
+- **Scale-down: zero replicas to no GPU node**
+  - OKE, one A10: 312 s, with the timers set to 3 minutes
+  - GKE, one L4: 752 s, with GKE's default delay
+- **Teardown**
+  - OKE, one A10: 6 min 54 s after the drain fix; 30 min 55 s before it
+  - GKE, one L4: 5 min 51 s to 6 min 39 s
+- **GPU time metered, fixed pool**
+  - OKE, one A10: 15 min 39 s
+  - GKE, one L4: about 18 min per run
+- **GPU time metered, autoscale**
+  - OKE, one A10: 13 min 52 s
+  - GKE, one L4: about 24 min
+- **Posted list cost, fixed pool**
+  - OKE, one A10: $0.63
+  - GKE, one L4: about $0.70 for the day's two runs
+- **Posted list cost, autoscale**
+  - OKE, one A10: $0.53
+  - GKE, one L4: about $0.50 for the day, with one failed start
+- **Posted list cost, every start**
+  - OKE, one A10: $1.17
+  - GKE, one L4: $1.19, of which $0.95 was charged after credits
+- **GPU list rate**
+  - OKE, one A10: $2.00 per hour
+  - GKE, one L4: about $0.56 per hour; $0.71 with its host VM
+- **Output throughput, one stream**
+  - OKE, one A10: 27.6 tokens/s
+  - GKE, one L4: 15.9 tokens/s
 
 How to read it:
 
@@ -482,13 +639,14 @@ How to read it:
 
 Sources: [nimble-oke receipts](https://github.com/frankbesch/nimble-oke/tree/main/docs/runs)
 and [nim-gke receipts](https://github.com/frankbesch/nim-gke/tree/main/docs/runs).
-The same table appears in both repositories.
+The same list appears
+in both repositories.
 
 ---
 
 ## Repository layout
 
-```
+```text
 nim-gke/
 ├── charts/                     # Helm charts and values
 │   └── values-production.yaml  # Production config (chart .tgz is gitignored, fetched at deploy time)
