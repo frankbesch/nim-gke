@@ -30,7 +30,7 @@ Three runs in project `nim-on-gke`, `us-central1-a`, chart `nim-llm-1.3.0`,
 image `nvcr.io/nim/meta/llama3-8b-instruct:1.0.0`, backend profile
 `vllm-fp16-tp1`. The per-run tables are in [docs/runs/](docs/runs/README.md).
 
-<picture><source media="(prefers-color-scheme: dark)" srcset="docs/diagrams/measured-dark.svg"/><img width="420" align="top" src="docs/diagrams/measured-light.svg" alt="Chart: four measures side by side for nimble-oke on OKE and nim-gke on GKE."/></picture> <picture><source media="(prefers-color-scheme: dark)" srcset="docs/diagrams/cost-dark.svg"/><img width="420" align="top" src="docs/diagrams/cost-light.svg" alt="Chart: posted cloud cost split by billing line."/></picture>
+<picture><source media="(prefers-color-scheme: dark)" srcset="docs/diagrams/measured-dark.svg"/><img width="400" align="top" src="docs/diagrams/measured-light.svg" alt="Chart: four measures side by side for nimble-oke on OKE and nim-gke on GKE."/></picture> <picture><source media="(prefers-color-scheme: dark)" srcset="docs/diagrams/cost-dark.svg"/><img width="400" align="top" src="docs/diagrams/cost-light.svg" alt="Chart: posted cloud cost split by billing line."/></picture>
 
 <details><summary>Text version of the charts</summary>
 
@@ -63,7 +63,7 @@ the [reference](docs/reference.md#cost).
 
 ## What it deploys
 
-<picture><source media="(prefers-color-scheme: dark)" srcset="docs/diagrams/deploys-dark.svg"/><img width="420" align="top" src="docs/diagrams/deploys-light.svg" alt="Architecture: a client calls the NIM pod inside the GKE cluster; the pod pulls its image from NGC, stores model files on a persistent disk, and runs on one GPU node that the cluster autoscaler adds and removes."/></picture>
+<picture><source media="(prefers-color-scheme: dark)" srcset="docs/diagrams/deploys-dark.svg"/><img width="400" align="top" src="docs/diagrams/deploys-light.svg" alt="Architecture: a client calls the NIM pod inside the GKE cluster; the pod pulls its image from NGC, stores model files on a persistent disk, and runs on one GPU node that the cluster autoscaler adds and removes."/></picture>
 
 NIM container → L4 GPU → GKE node pool. NIM picks a backend profile at startup for the detected GPU; on the L4 it found one compatible profile, `vllm-fp16-tp1` (vLLM, FP16), per the [run 2 pod log](docs/runs/2026-09-27-run-2-fixed.md#backend-profile).
 
@@ -173,7 +173,7 @@ The production path, `deploy_nim_production.sh`, is not measured; see
 `scripts/run_measured.sh` runs the whole path once and records it: preflight,
 deploy, wait for Ready, benchmark, cleanup, and a check that nothing is left.
 
-<picture><source media="(prefers-color-scheme: dark)" srcset="docs/diagrams/autoscale-dark.svg"/><img width="420" align="top" src="docs/diagrams/autoscale-light.svg" alt="Chart: the GPU node pool goes from 0 nodes to 1 and back to 0, with the measured scale-up and scale-down times."/></picture> <picture><source media="(prefers-color-scheme: dark)" srcset="docs/diagrams/runner-ends-dark.svg"/><img width="420" align="top" src="docs/diagrams/runner-ends-light.svg" alt="Workflow: how the runner ends, with the cluster deleted or the watchdog still armed."/></picture>
+<picture><source media="(prefers-color-scheme: dark)" srcset="docs/diagrams/autoscale-dark.svg"/><img width="400" align="top" src="docs/diagrams/autoscale-light.svg" alt="Chart: the GPU node pool goes from 0 nodes to 1 and back to 0, with the measured scale-up and scale-down times."/></picture> <picture><source media="(prefers-color-scheme: dark)" srcset="docs/diagrams/runner-ends-dark.svg"/><img width="400" align="top" src="docs/diagrams/runner-ends-light.svg" alt="Workflow: how the runner ends, with the cluster deleted or the watchdog still armed."/></picture>
 
 <details><summary>Text version of the charts</summary>
 

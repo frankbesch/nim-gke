@@ -1,6 +1,6 @@
 # GPU node autoscaling and how the runner ends
 
-<picture><source media="(prefers-color-scheme: dark)" srcset="diagrams/autoscale-dark.svg"/><img width="420" align="top" src="diagrams/autoscale-light.svg" alt="Chart: the GPU node pool goes from 0 nodes to 1 and back to 0, with the measured scale-up and scale-down times."/></picture>
+<picture><source media="(prefers-color-scheme: dark)" srcset="diagrams/autoscale-dark.svg"/><img width="400" align="top" src="diagrams/autoscale-light.svg" alt="Chart: the GPU node pool goes from 0 nodes to 1 and back to 0, with the measured scale-up and scale-down times."/></picture>
 
 <details><summary>Text version of this diagram</summary>
 
@@ -21,7 +21,7 @@ Scope: one GPU node, measured once, in
 
 ## How the runner ends
 
-<picture><source media="(prefers-color-scheme: dark)" srcset="diagrams/runner-ends-dark.svg"/><img width="420" align="top" src="diagrams/runner-ends-light.svg" alt="Workflow: start the runner, arm the watchdog, run the steps, clean up, then exit when cleanup is confirmed; otherwise print the manual delete commands with the watchdog still armed."/></picture>
+<picture><source media="(prefers-color-scheme: dark)" srcset="diagrams/runner-ends-dark.svg"/><img width="400" align="top" src="diagrams/runner-ends-light.svg" alt="Workflow: start the runner, arm the watchdog, run the steps, clean up, then exit when cleanup is confirmed; otherwise print the manual delete commands with the watchdog still armed."/></picture>
 
 <details><summary>Text version of this diagram</summary>
 
