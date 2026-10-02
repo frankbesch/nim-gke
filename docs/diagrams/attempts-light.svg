@@ -1,0 +1,28 @@
+<svg viewBox="0 0 1000 358" xmlns="http://www.w3.org/2000/svg" role="img" font-family='ui-monospace, "SFMono-Regular", "SF Mono", Menlo, Consolas, monospace'>
+<title>Every attempt on 2026-09-27 and 2026-09-28</title>
+<desc>Five starts. 09-27 18:56 fixed pool run 1 passed in 31 minutes. 09-27 23:03 preflight gave a false fail. 09-27 23:09 fixed pool run 2 passed in 30 minutes and left one 50 GiB disk. 09-28 the first autoscale start failed and stranded a cluster. 09-28 19:48 autoscale run 3 passed in 39 minutes.</desc>
+<rect width="1000" height="358" rx="6" fill="#FCFBF9"/>
+<text x="40" y="44" font-size="17" fill="#2B2926" font-weight="600">Every attempt on 2026-09-27 and 2026-09-28</text>
+<line x1="40" y1="60" x2="960" y2="60" stroke="#D2CCC3"/>
+<text x="40" y="97" font-size="12.5" fill="#2B2926">1  Fixed pool, run 1</text>
+<text x="40" y="114" font-size="10.5" fill="#6A625A">09-27 18:56 UTC</text>
+<rect x="270.0" y="84" width="130.2" height="24" rx="2" fill="#33703F"/>
+<text x="410.20000000000005" y="101" font-size="11.5" fill="#2B2926">PASS · 31 min · $0.43 estimate</text>
+<text x="40" y="143" font-size="12.5" fill="#2B2926">2  Fixed pool, preflight</text>
+<text x="40" y="160" font-size="10.5" fill="#6A625A">09-27 23:03 UTC</text>
+<rect x="270.0" y="130" width="6.0" height="24" rx="2" fill="#90302B"/>
+<text x="286" y="147" font-size="11.5" fill="#2B2926">false FAIL · seconds · $0</text>
+<text x="40" y="189" font-size="12.5" fill="#2B2926">3  Fixed pool, run 2</text>
+<text x="40" y="206" font-size="10.5" fill="#6A625A">09-27 23:09 UTC</text>
+<rect x="270.0" y="176" width="126.0" height="24" rx="2" fill="#33703F"/>
+<text x="406.0" y="193" font-size="11.5" fill="#2B2926">PASS; one 50 GiB disk left · 30 min · $0.40 estimate</text>
+<text x="40" y="235" font-size="12.5" fill="#2B2926">4  Autoscale, first start</text>
+<text x="40" y="252" font-size="10.5" fill="#6A625A">09-28, time not recorded</text>
+<rect x="270" y="222" width="40" height="24" rx="2" fill="none" stroke="#90302B" stroke-dasharray="4 3"/>
+<text x="320" y="239" font-size="11.5" fill="#2B2926">FAIL; cluster stranded · duration not recorded · about $0.05</text>
+<text x="40" y="281" font-size="12.5" fill="#2B2926">5  Autoscale, run 3</text>
+<text x="40" y="298" font-size="10.5" fill="#6A625A">09-28 19:48 UTC</text>
+<rect x="270.0" y="268" width="163.8" height="24" rx="2" fill="#33703F"/>
+<text x="443.8" y="285" font-size="11.5" fill="#2B2926">PASS · 39 min · about $0.46 estimate</text>
+<text x="40" y="336" font-size="11.5" fill="#6A625A">Bar length is run duration. Per-run costs are estimates at list price; the posted total for both days is $1.19.</text>
+</svg>

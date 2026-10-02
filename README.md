@@ -70,6 +70,14 @@ Notes:
 
 ## What it deploys
 
+<picture><source media="(prefers-color-scheme: dark)" srcset="docs/diagrams/deploys-dark.svg"/><img src="docs/diagrams/deploys-light.svg" alt="Architecture: a client calls the NIM pod inside the GKE cluster; the pod pulls its image from NGC, stores model files on a persistent disk, and runs on one GPU node that the cluster autoscaler adds and removes."/></picture>
+
+<details><summary>Text version of this diagram</summary>
+
+A client (curl or an OpenAI SDK) calls the NIM pod over the OpenAI-compatible API. The NIM pod runs `llama3-8b-instruct` 1.0.0 with backend profile `vllm-fp16-tp1`. It pulls its image from the NGC registry and keeps model files on a 50 GiB persistent disk. It is scheduled on one GPU node, `g2-standard-4` with one NVIDIA L4. With `AUTOSCALE=1`, the GKE cluster autoscaler adds and removes that node. The pod, disk, GPU node, and autoscaler sit inside the GKE cluster in `us-central1-a`.
+
+</details>
+
 NIM container → L4 GPU → GKE node pool. NIM picks a backend profile at startup for the detected GPU; on the L4 it found one compatible profile, `vllm-fp16-tp1` (vLLM, FP16), per the [run 2 pod log](docs/runs/2026-09-27-run-2-fixed.md#backend-profile).
 
 **Components**:
@@ -194,6 +202,14 @@ scripts/run_measured.sh /tmp/nim-run-fixed
 
 ### GPU node autoscaling, 0 to 1 to 0
 
+<picture><source media="(prefers-color-scheme: dark)" srcset="docs/diagrams/autoscale-dark.svg"/><img src="docs/diagrams/autoscale-light.svg" alt="Chart: the GPU node pool goes from 0 nodes to 1 and back to 0, with the measured scale-up and scale-down times."/></picture>
+
+<details><summary>Text version of this diagram</summary>
+
+The GPU node pool starts at 0 nodes. The NIM pod goes Pending and asks for one GPU. The GPU node is Ready 1 m 17 s later. NIM serves the benchmark, then replicas are set to 0. The pool is back at 0 nodes 12 m 32 s after that.
+
+</details>
+
 `--autoscale` creates the GPU pool with no nodes and autoscaling from 0 to 1.
 The pending NIM pod triggers one GPU node. After the benchmark, the runner
 scales NIM to zero replicas and waits for the autoscaler to remove the node.
@@ -206,6 +222,14 @@ Scope: one GPU node, measured once, in
 [run 3](docs/runs/2026-09-28-run-3-autoscale.md).
 
 ### How the runner ends
+
+<picture><source media="(prefers-color-scheme: dark)" srcset="docs/diagrams/runner-ends-dark.svg"/><img src="docs/diagrams/runner-ends-light.svg" alt="Workflow: start the runner, arm the watchdog, run the steps, clean up, then exit when cleanup is confirmed; otherwise print the manual delete commands with the watchdog still armed."/></picture>
+
+<details><summary>Text version of this diagram</summary>
+
+The runner sets a trap and arms a watchdog in its own session. The steps run: deploy and benchmark. Cleanup runs from the trap on every exit. When cleanup is confirmed, the runner exits with the cluster deleted. If the runner dies or the time limit passes, the watchdog runs cleanup. If cleanup cannot be confirmed, the runner prints the `gcloud` delete commands and leaves the watchdog armed.
+
+</details>
 
 - A trap runs cleanup on success, failure, Ctrl-C, and `TERM`.
 - A watchdog runs in its own session, outside the terminal's process tree. It
@@ -416,6 +440,14 @@ runs in each repository's `docs/runs/` show which rows are proven against the
 real API.
 
 ### Measured side by side
+
+<picture><source media="(prefers-color-scheme: dark)" srcset="docs/diagrams/measured-dark.svg"/><img src="docs/diagrams/measured-light.svg" alt="Chart: four measures side by side for nimble-oke on OKE and nim-gke on GKE."/></picture>
+
+<details><summary>Text version of this diagram</summary>
+
+Scale-up 385 s on OKE and 77 s on GKE. Scale-down 312 s on OKE with timers set to 3 minutes and 752 s on GKE with the default delay. Script start to NIM Ready with autoscale 23 min 04 s on OKE and 16 min 07 s on GKE. Posted list cost for every start $1.17 on OKE and $1.19 on GKE.
+
+</details>
 
 The two kits were measured on different hardware, so this table is a record
 of what each run did. It is not a benchmark of the two platforms.

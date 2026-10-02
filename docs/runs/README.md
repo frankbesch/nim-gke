@@ -6,6 +6,14 @@ Cloud Billing Catalog API, with durations as upper bounds.
 
 ## Posted cost
 
+<picture><source media="(prefers-color-scheme: dark)" srcset="../diagrams/cost-dark.svg"/><img src="../diagrams/cost-light.svg" alt="Chart: posted cloud cost split by billing line."/></picture>
+
+<details><summary>Text version of this diagram</summary>
+
+Posted list cost $1.19 for five starts: L4 GPU $0.5608, G2 host VM $0.1471, E2 system node $0.1887, persistent disk $0.0440, Kubernetes Engine fee $0.19 credited, networking $0.05 credited, Cloud Monitoring $0.01. Charged after credits $0.95.
+
+</details>
+
 The Cloud Billing report for 2026-09-26 to 2026-09-30, read on 2026-10-02,
 covers all five starts below. The report groups by service, not by run, so
 the receipts keep their per-run estimates.
@@ -76,6 +84,14 @@ Against the receipts:
 | [2026-09-28, run 3](2026-09-28-run-3-autoscale.md) | Autoscale, GPU pool 0 to 1 to 0 | PASS: scale-up 1 m 17 s, scale-down 12 m 32 s; destroy clean |
 
 ## Every attempt, including the failures
+
+<picture><source media="(prefers-color-scheme: dark)" srcset="../diagrams/attempts-dark.svg"/><img src="../diagrams/attempts-light.svg" alt="Chart: every start, with pass or fail, duration, and cost."/></picture>
+
+<details><summary>Text version of this diagram</summary>
+
+Five starts. 09-27 18:56 fixed pool run 1 passed in 31 minutes. 09-27 23:03 preflight gave a false fail. 09-27 23:09 fixed pool run 2 passed in 30 minutes and left one 50 GiB disk. 09-28 the first autoscale start failed and stranded a cluster. 09-28 19:48 autoscale run 3 passed in 39 minutes.
+
+</details>
 
 Five starts produced the three receipts above. Times are UTC.
 

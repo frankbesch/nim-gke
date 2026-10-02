@@ -1,0 +1,149 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "nim-gke: what it deploys",
+    "quality_profile": "showcase"
+  },
+  "components": [
+    {
+      "id": "client",
+      "type": "external",
+      "label": "Client",
+      "sublabel": "curl or OpenAI SDK",
+      "pos": [
+        40,
+        240
+      ],
+      "size": [
+        150,
+        64
+      ]
+    },
+    {
+      "id": "ngc",
+      "type": "external",
+      "label": "NGC registry",
+      "sublabel": "nvcr.io/nim/meta",
+      "pos": [
+        600,
+        50
+      ],
+      "size": [
+        180,
+        64
+      ]
+    },
+    {
+      "id": "nim",
+      "type": "backend",
+      "label": "NIM pod",
+      "sublabel": "llama3-8b-instruct 1.0.0",
+      "pos": [
+        600,
+        240
+      ],
+      "size": [
+        180,
+        64
+      ],
+      "tag": "vllm-fp16-tp1"
+    },
+    {
+      "id": "cache",
+      "type": "database",
+      "label": "Persistent disk",
+      "sublabel": "50 GiB model cache",
+      "pos": [
+        900,
+        240
+      ],
+      "size": [
+        170,
+        64
+      ]
+    },
+    {
+      "id": "gpu",
+      "type": "cloud",
+      "label": "GPU node",
+      "sublabel": "g2-standard-4, one L4",
+      "pos": [
+        600,
+        430
+      ],
+      "size": [
+        180,
+        64
+      ],
+      "tag": "pool 0 to 1 with AUTOSCALE=1"
+    },
+    {
+      "id": "autoscaler",
+      "type": "cloud",
+      "label": "Cluster autoscaler",
+      "sublabel": "managed by GKE",
+      "pos": [
+        300,
+        430
+      ],
+      "size": [
+        170,
+        64
+      ]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "GKE cluster, us-central1-a",
+      "wraps": [
+        "nim",
+        "cache",
+        "gpu",
+        "autoscaler"
+      ],
+      "pad": 44
+    }
+  ],
+  "connections": [
+    {
+      "id": "client-to-nim",
+      "from": "client",
+      "to": "nim",
+      "label": "OpenAI-compatible API",
+      "variant": "emphasis"
+    },
+    {
+      "id": "image-pull",
+      "from": "ngc",
+      "to": "nim",
+      "label": "image pull",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "labelDy": 80
+    },
+    {
+      "id": "nim-to-cache",
+      "from": "nim",
+      "to": "cache",
+      "label": "model files"
+    },
+    {
+      "id": "nim-on-gpu",
+      "from": "nim",
+      "to": "gpu",
+      "label": "scheduled on",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "labelDy": 80
+    },
+    {
+      "id": "scale",
+      "from": "autoscaler",
+      "to": "gpu",
+      "label": "adds and removes",
+      "variant": "dashed"
+    }
+  ]
+}
