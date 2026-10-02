@@ -23,6 +23,21 @@ $0.15 at list cost, as an upper bound should be. The credit covered the whole
 cluster fee, which run 1's receipt had marked as not verified. The estimates
 left out networking and monitoring, $0.06 together.
 
+Compute Engine by SKU, same period and report:
+
+| SKU | Usage | List cost |
+|---|---|---|
+| NVIDIA L4 GPU | 1.00 hour | $0.5608 |
+| G2 instance core and RAM | 4.01 core-hours, 16.03 GiB-hours | $0.1471 |
+| E2 instance core and RAM | 5.63 core-hours, 22.54 GiB-hours | $0.1887 |
+| Balanced persistent disk | 0.44 GiB-months | $0.0440 |
+| **Compute Engine total** | | **$0.9406** |
+
+The L4 was metered for about 60 minutes across all starts. The three receipts
+estimated 72.5 minutes in total, as upper bounds. The system node was metered
+for about 84 minutes (5.63 core-hours on 4 cores) against 99.7 estimated.
+The disk line includes the orphaned disk from run 2.
+
 ## Receipts
 
 | Run | Mode | Result |
