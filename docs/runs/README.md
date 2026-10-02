@@ -38,6 +38,25 @@ estimated 72.5 minutes in total, as upper bounds. The system node was metered
 for about 84 minutes (5.63 core-hours on 4 cores) against 99.7 estimated.
 The disk line includes the orphaned disk from run 2.
 
+Compute Engine by day, same report:
+
+| Line | 09-27: runs 1 and 2 | 09-28: failed start and run 3 |
+|---|---|---|
+| NVIDIA L4 GPU | $0.3398, about 36 min | $0.2211, about 24 min |
+| G2 instance core and RAM | $0.0891 | $0.0580 |
+| E2 instance core and RAM | $0.1065, about 48 min | $0.0823, about 37 min |
+| Balanced persistent disk | $0.0266 | $0.0174 |
+| **Compute Engine, posted** | **$0.5619** | **$0.3787** |
+| Same lines in the receipts, estimated | $0.73 | $0.40, plus the failed start |
+
+The day is the finest split the report gives. Minutes are derived from the
+posted usage. The cluster fee, networking, and monitoring are not in this
+breakdown; they add $0.25 at list cost over the period, $0.24 of it credited.
+
+Against the receipts: runs 1 and 2 estimated 47.9 GPU minutes and were
+metered for about 36. Run 3 estimated 24.6 GPU minutes, and the whole day was
+metered for about 24, so the failed first start used little or no GPU time.
+
 ## Receipts
 
 | Run | Mode | Result |
