@@ -2,14 +2,15 @@
 """Draw the README diagrams and charts as light and dark SVG.
 
 Usage: python3 docs/diagrams/charts.py
-Writes six charts as <name>-light.svg and <name>-dark.svg. Every figure is copied from the README
+Writes six charts as <name>-light.svg and <name>-dark.svg, in three pairs of
+equal height (PAIRS, D-262). Every figure is copied from the README
 and docs/runs/. Change a figure there first, then here. The drawing code is
 quoin_readme.py, a copy kept in step by promptkits/quoin/github/sync.py.
 """
 from pathlib import Path
 
 from quoin_readme import (THEMES, GREEN, BLUE, OCHRE, RED, STEEL, M, R, text, rect, para, note,
-                          head, svg, deploys, runner_ends, measured, autoscale)
+                          head, svg, pair, deploys, runner_ends, measured, autoscale)
 
 HERE = Path(__file__).resolve().parent
 
@@ -79,8 +80,9 @@ AUTOSCALE = dict(
 )
 
 
-def cost(c):
-    """Posted Google Cloud list cost for both days, stacked by billing line."""
+def cost(c, spread=0.0, h=0):
+    """Posted Google Cloud list cost for both days, stacked by billing line.
+    spread makes the bar thicker and the key rows wider apart."""
     lines = [("GPU, NVIDIA L4", 0.5608, c["series"][GREEN]),
              ("GPU host VM, G2 cores and memory", 0.1471, c["series"][BLUE]),
              ("System node, E2 cores and memory", 0.1887, c["series"][OCHRE]),
@@ -89,15 +91,16 @@ def cost(c):
              ("Networking, credited", 0.05, c["ink2"]),
              ("Cloud Monitoring", 0.01, c["ink2"])]
     scale = (R - M) / 1.19
+    bh, row = 22 + round(30 * spread), 24 + round(10 * spread)
     b, y = head("Posted Google Cloud cost by billing line", c)
     sub, y = para(M, y, "All five starts, 2026-09-27 and 2026-09-28", 12, c["ink"], R - M)
     b += sub
     x = float(M)
     for _, v, colour in lines:
-        b.append(rect(x, y - 6, v * scale - 1.5, 22, colour, rx=1))
+        b.append(rect(x, y - 6, v * scale - 1.5, bh, colour, rx=1))
         x += v * scale
-    b.append(text(R, y + 36, "$1.19 list", 13, c["ink"], anchor="end", weight=600))
-    y += 60
+    b.append(text(R, y + bh + 14, "$1.19 list", 13, c["ink"], anchor="end", weight=600))
+    y += bh + 38 + round(20 * spread)
     b.append(f'<line x1="{M}" y1="{y - 12}" x2="{R}" y2="{y - 12}" stroke="{c["rule"]}"/>')
     b.append(text(R, y + 10, "List cost", 12, c["ink2"], anchor="end"))
     y += 34
@@ -106,16 +109,17 @@ def cost(c):
         b.append(text(M + 18, y, name, 12, c["ink"]))
         shown = f"${v:.4f}" if v != round(v, 2) or v == 0.044 else f"${v:.2f}"
         b.append(text(R, y, shown, 12, c["ink"], anchor="end"))
-        y += 24
+        y += row
     foot, y = note(y + 8, "Charged after credits: $0.95. Posted usage from the Cloud Billing report, "
                    "read on 2026-10-02. Not an invoice.", c)
     foot2, y = note(y + 4, "The report splits by day, not by run.", c)
     desc = COST_DESC
-    return svg(y, "Posted Google Cloud cost by billing line", desc, b + foot + foot2, c)
+    return svg(max(y, h), "Posted Google Cloud cost by billing line", desc, b + foot + foot2, c)
 
 
-def attempts(c):
-    """Five starts over two days, as duration bars."""
+def attempts(c, spread=0.0, h=0):
+    """Five starts over two days, as duration bars.
+    spread opens the gap between rows."""
     rows = [  # label, when, minutes (None = not recorded), PASS, note
         ("1  Fixed pool, run 1", "09-27 18:56", 31, True, "PASS · 31 min · $0.43 estimate"),
         ("2  Fixed pool, preflight", "09-27 23:03", 0, False, "false FAIL · seconds · $0"),
@@ -134,26 +138,29 @@ def attempts(c):
             b.append(rect(M, y + 27, max(minutes * 8.0, 5), 14, colour))
         lines, y = para(M, y + 59, shown, 12, c["ink"], R - M)
         b += lines
-        y += 12
+        y += 12 + round(20 * spread)
     foot, y = note(y + 4, "Bar length is run duration. Per-run costs are estimates at list price; "
                    "the posted total for both days is $1.19.", c)
     desc = ("Five starts. 09-27 18:56 fixed pool run 1 passed in 31 minutes. 09-27 23:03 preflight "
             "gave a false fail. 09-27 23:09 fixed pool run 2 passed in 30 minutes and left one 50 GiB "
             "disk. 09-28 the first autoscale start failed and stranded a cluster. 09-28 19:48 autoscale "
             "run 3 passed in 39 minutes.")
-    return svg(y, "Every attempt on 2026-09-27 and 2026-09-28", desc, b + foot, c)
+    return svg(max(y, h), "Every attempt on 2026-09-27 and 2026-09-28", desc, b + foot, c)
+
+
+# The README shows these as pairs, one per line, at one height (D-262).
+PAIRS = [("measured", lambda c, s=0.0, h=0: measured(MEASURED, c, s, h), "attempts", attempts),
+         ("deploys", lambda c, s=0.0, h=0: deploys(DEPLOYS, c, s, h), "cost", cost),
+         ("autoscale", lambda c, s=0.0, h=0: autoscale(AUTOSCALE, c, s, h),
+          "runner-ends", lambda c, s=0.0, h=0: runner_ends(RUNNER, c, s, h))]
 
 
 def main():
-    singles = {"deploys": lambda c: deploys(DEPLOYS, c), "runner-ends": lambda c: runner_ends(RUNNER, c),
-               "measured": lambda c: measured(MEASURED, c), "cost": cost, "attempts": attempts,
-               "autoscale": lambda c: autoscale(AUTOSCALE, c)}
     for theme, c in THEMES.items():
-        out = {name: fn(c) for name, fn in singles.items()}
-        for name, s in out.items():
-            (HERE / f"{name}-{theme}.svg").write_text(s)
-    print("built", ", ".join(singles))
-
+        for ln, lf, rn, rf in PAIRS:
+            for name, s in zip((ln, rn), pair(lf, rf, c)):
+                (HERE / f"{name}-{theme}.svg").write_text(s)
+    print("built", ", ".join(f"{ln} | {rn}" for ln, _, rn, _ in PAIRS))
 
 if __name__ == "__main__":
     main()
