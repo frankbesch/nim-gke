@@ -29,40 +29,30 @@ no default; scripts no longer call `gcloud config set project`.
 
 ## Deployment Steps
 
-### Step 1: Environment Setup & Validation
+Not measured end to end. For the one measured deploy, smoke, and destroy
+cycle, use `scripts/deploy_nim_gke.sh` and see the receipt linked above.
+
 ```bash
-cd ~/nim-gke
-./setup_environment.sh
+# 1. From the repo root: set up and
+#    validate tools, auth, APIs,
+#    quotas, the NGC key, network.
+./scripts/setup_environment.sh
+
+# 2. Deploy. Bills from here. GPU pool
+#    autoscales 0-2 nodes; the system
+#    pool keeps at least 1 node.
+./scripts/deploy_nim_production.sh
+
+# 3. Forward the port in the
+#    background, then run the tests.
+kubectl port-forward -n nim \
+  service/my-nim-nim-llm 8000:8000 &
+PF=$!; sleep 3
+./scripts/test_nim_production.sh
+kill "$PF"
 ```
 
-**What it does:**
-- Validates tools (gcloud, kubectl, helm, jq)
-- Sets up GCP authentication
-- Enables required APIs
-- Validates quotas (CPU, GPU, billing)
-- Tests NGC API key
-- Verifies network connectivity
-
-### Step 2: Deployment
-```bash
-./deploy_nim_production.sh
-```
-
-**Configuration**: GPU node pool autoscales 0-2 nodes; the system pool has a
-minimum of 1 node. This script has not been run end-to-end and measured. For
-the one measured deploy/smoke/destroy cycle, use `scripts/deploy_nim_gke.sh`
-and see the receipt linked above.
-
-### **Step 3: Production Testing**
-```bash
-# Terminal 1: Port forward
-kubectl port-forward service/my-nim-nim-llm 8000:8000 -n nim
-
-# Terminal 2: Run tests
-./test_nim_production.sh
-```
-
-**What it does:**
+**Step 3 runs:**
 - ✅ Health checks
 - ✅ API endpoint testing
 - ✅ Chat completion testing
@@ -73,7 +63,7 @@ kubectl port-forward service/my-nim-nim-llm 8000:8000 -n nim
 
 ---
 
-## 🔧 **Production Optimizations**
+## **Production Optimizations**
 
 ### **1. Fault Tolerance**
 ```bash
@@ -113,7 +103,7 @@ resources:
 
 ---
 
-## 📊 **Production Monitoring**
+## **Production Monitoring**
 
 ### **Real-time Monitoring**
 ```bash
@@ -160,7 +150,7 @@ or costed; only the fixed 1-node deployment in the receipt is measured.
 
 ---
 
-## 🔒 **Security Best Practices**
+## **Security Best Practices**
 
 ### **Implemented Security**
 - ✅ **API Keys** protected by .gitignore
@@ -191,7 +181,7 @@ EOF
 
 ---
 
-## 🚨 **Troubleshooting Guide**
+## **Troubleshooting Guide**
 
 ### **Common Issues & Solutions**
 
@@ -234,7 +224,7 @@ kubectl scale statefulset my-nim-nim-llm --replicas=2 -n nim
 
 ---
 
-## 📈 **Performance Tuning**
+## **Performance Tuning**
 
 ### **Optimization Settings**
 ```yaml
@@ -264,10 +254,10 @@ env:
 
 ---
 
-## 🎯 **Production Checklist**
+## **Production Checklist**
 
 ### **Pre-Deployment**
-- [ ] ✅ Environment validated (`./setup_environment.sh`)
+- [ ] ✅ Environment validated (`./scripts/setup_environment.sh`)
 - [ ] ✅ Quotas approved (CPU, GPU)
 - [ ] ✅ Billing enabled
 - [ ] ✅ NGC API key configured
@@ -286,7 +276,7 @@ env:
 
 ---
 
-## 🚀 **Quick Start Commands**
+## **Quick Start Commands**
 
 ```bash
 # From the repo root
@@ -301,7 +291,7 @@ env:
 
 ---
 
-## 📚 **Additional Resources**
+## **Additional Resources**
 
 - [Official Google Codelabs Tutorial](https://codelabs.developers.google.com/codelabs/nvidia-nim-google-cloud)
 - [NVIDIA NIM Documentation](https://docs.nvidia.com/nim/)

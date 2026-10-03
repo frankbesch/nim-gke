@@ -6,7 +6,7 @@ Cloud Billing Catalog API, with durations as upper bounds.
 
 ## Posted cost
 
-<picture><source media="(prefers-color-scheme: dark)" srcset="../diagrams/runs-cost-dark.svg"/><img width="400" align="top" src="../diagrams/runs-cost-light.svg" alt="Chart: posted cloud cost, one panel per billing line."/></picture> <picture><source media="(prefers-color-scheme: dark)" srcset="../diagrams/runs-attempts-dark.svg"/><img width="400" align="top" src="../diagrams/runs-attempts-light.svg" alt="Chart: every start, with pass or fail, duration, and cost."/></picture>
+<p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="../diagrams/runs-cost-dark.svg"/><img width="400" align="top" src="../diagrams/runs-cost-light.svg" alt="Chart: posted cloud cost, one panel per billing line."/></picture> <picture><source media="(prefers-color-scheme: dark)" srcset="../diagrams/runs-attempts-dark.svg"/><img width="400" align="top" src="../diagrams/runs-attempts-light.svg" alt="Chart: every start, with pass or fail, duration, and cost."/></picture></p>
 
 <details><summary>Text version of the diagrams</summary>
 

@@ -30,7 +30,7 @@ Three runs in project `nim-on-gke`, `us-central1-a`, chart `nim-llm-1.3.0`,
 image `nvcr.io/nim/meta/llama3-8b-instruct:1.0.0`, backend profile
 `vllm-fp16-tp1`. The per-run tables are in [docs/runs/](docs/runs/README.md).
 
-<picture><source media="(prefers-color-scheme: dark)" srcset="docs/diagrams/measured-dark.svg"/><img width="400" align="top" src="docs/diagrams/measured-light.svg" alt="Chart: four measures side by side for nimble-oke on OKE and nim-gke on GKE."/></picture> <picture><source media="(prefers-color-scheme: dark)" srcset="docs/diagrams/attempts-dark.svg"/><img width="400" align="top" src="docs/diagrams/attempts-light.svg" alt="Chart: every start, with pass or fail, duration, and cost."/></picture>
+<p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/diagrams/measured-dark.svg"/><img width="400" align="top" src="docs/diagrams/measured-light.svg" alt="Chart: four measures side by side for nimble-oke on OKE and nim-gke on GKE."/></picture> <picture><source media="(prefers-color-scheme: dark)" srcset="docs/diagrams/attempts-dark.svg"/><img width="400" align="top" src="docs/diagrams/attempts-light.svg" alt="Chart: every start, with pass or fail, duration, and cost."/></picture></p>
 
 <details><summary>Text version of the charts</summary>
 
@@ -63,7 +63,7 @@ the [reference](docs/reference.md#cost).
 
 ## What it deploys
 
-<picture><source media="(prefers-color-scheme: dark)" srcset="docs/diagrams/deploys-dark.svg"/><img width="400" align="top" src="docs/diagrams/deploys-light.svg" alt="Architecture: a client calls the NIM pod inside the GKE cluster; the pod pulls its image from NGC, stores model files on a persistent disk, and runs on one GPU node that the cluster autoscaler adds and removes."/></picture> <picture><source media="(prefers-color-scheme: dark)" srcset="docs/diagrams/cost-dark.svg"/><img width="400" align="top" src="docs/diagrams/cost-light.svg" alt="Chart: posted cloud cost split by billing line."/></picture>
+<p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/diagrams/deploys-dark.svg"/><img width="400" align="top" src="docs/diagrams/deploys-light.svg" alt="Architecture: a client calls the NIM pod inside the GKE cluster; the pod pulls its image from NGC, stores model files on a persistent disk, and runs on one GPU node that the cluster autoscaler adds and removes."/></picture> <picture><source media="(prefers-color-scheme: dark)" srcset="docs/diagrams/cost-dark.svg"/><img width="400" align="top" src="docs/diagrams/cost-light.svg" alt="Chart: posted cloud cost split by billing line."/></picture></p>
 
 NIM container → L4 GPU → GKE node pool. NIM picks a backend profile at startup for the detected GPU; on the L4 it found one compatible profile, `vllm-fp16-tp1` (vLLM, FP16), per the [run 2 pod log](docs/runs/2026-09-27-run-2-fixed.md#backend-profile).
 
@@ -109,8 +109,9 @@ versions are not yet tested here.
 
 **GPU quota approval**: Required before deployment. See `/docs/GPU_QUOTA_GUIDE.md`.
 
-`NGC_API_KEY` is the variable the `nim-llm` chart and NVIDIA's docs use
-(https://docs.nvidia.com/nim/large-language-models/latest/deployment/kubernetes-deployment/helm-k8s.html).
+`NGC_API_KEY` is the variable the `nim-llm` chart and
+[NVIDIA's Helm guide](https://docs.nvidia.com/nim/large-language-models/latest/deployment/kubernetes-deployment/helm-k8s.html)
+use.
 `NGC_CLI_API_KEY` is still accepted as a fallback if `NGC_API_KEY` is unset.
 
 ```bash
@@ -128,16 +129,16 @@ export PROJECT_ID='your-gcp-project'
 # 4. Verify the pod.
 kubectl get pods -n nim
 
-# Forward the service port. It keeps
-# running: use a second terminal.
+# Forward the service port in the
+# background; stopped after step 5.
 kubectl port-forward -n nim \
-  svc/my-nim-nim-llm 8000:8000
+  svc/my-nim-nim-llm 8000:8000 &
+PF=$!; sleep 3
 
-# 5. Test.
+# 5. Test, then run the benchmark.
 ./scripts/test_nim.sh
-
-# Or run the benchmark.
 python3 scripts/bench.py
+kill "$PF"
 
 # 6. Tear down.
 ./scripts/cleanup.sh
@@ -155,7 +156,7 @@ The production path, `deploy_nim_production.sh`, is not measured; see
 `scripts/run_measured.sh` runs the whole path once and records it: preflight,
 deploy, wait for Ready, benchmark, cleanup, and a check that nothing is left.
 
-<picture><source media="(prefers-color-scheme: dark)" srcset="docs/diagrams/autoscale-dark.svg"/><img width="400" align="top" src="docs/diagrams/autoscale-light.svg" alt="Chart: the GPU node pool goes from 0 nodes to 1 and back to 0, with the measured scale-up and scale-down times."/></picture> <picture><source media="(prefers-color-scheme: dark)" srcset="docs/diagrams/runner-ends-dark.svg"/><img width="400" align="top" src="docs/diagrams/runner-ends-light.svg" alt="Workflow: how the runner ends, with the cluster deleted or the watchdog still armed."/></picture>
+<p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/diagrams/autoscale-dark.svg"/><img width="400" align="top" src="docs/diagrams/autoscale-light.svg" alt="Chart: the GPU node pool goes from 0 nodes to 1 and back to 0, with the measured scale-up and scale-down times."/></picture> <picture><source media="(prefers-color-scheme: dark)" srcset="docs/diagrams/runner-ends-dark.svg"/><img width="400" align="top" src="docs/diagrams/runner-ends-light.svg" alt="Workflow: how the runner ends, with the cluster deleted or the watchdog still armed."/></picture></p>
 
 <details><summary>Text version of the charts</summary>
 
@@ -165,21 +166,20 @@ The runner sets a trap and arms a watchdog in its own session. The steps run: de
 
 </details>
 
-Set the two required variables:
+Pick one run; each bills once.
 
 ```bash
+# Set the two required variables.
 export PROJECT_ID='your-gcp-project'
 export NGC_API_KEY='your-key-here'
-```
 
-Fixed pool:
-
-```bash
+# Fixed pool:
 scripts/run_measured.sh \
   /tmp/nim-run-fixed
 ```
 
-Autoscale, 0 to 1 to 0:
+<!-- separate: a second run bills again -->
+Or autoscale, 0 to 1 to 0, with the same variables:
 
 ```bash
 scripts/run_measured.sh --autoscale \

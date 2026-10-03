@@ -1,6 +1,6 @@
-# 🎮 GPU Quota Request Guide
+# GPU Quota Request Guide
 
-## 📊 Current Status
+## Current Status
 
 ✅ **Completed:**
 - GKE cluster `nim-demo` created successfully
@@ -14,7 +14,7 @@
 
 ---
 
-## 🔧 How to Request GPU Quota
+## How to Request GPU Quota
 
 ### Step 1: Open Quotas Page
 
@@ -50,7 +50,7 @@ In the **Filter** box at the top, enter one of:
 
 ---
 
-## ⏰ Timeline
+## Timeline
 
 | Action | Duration | Status |
 |--------|----------|--------|
@@ -61,24 +61,21 @@ In the **Filter** box at the top, enter one of:
 
 ---
 
-## 🚀 What to Do After Approval
+## What to Do After Approval
 
 ### Option A: Add GPU Node Pool Only (Recommended)
 
-Your cluster is already created! Just add the GPU node pool:
+The cluster already exists, so add the GPU node pool, then deploy NIM. Both
+steps bill from the first GPU node.
 
 ```bash
-# After quota is approved
-cd ~/nim-gke
-export PATH="/opt/homebrew/share/google-cloud-sdk/bin:$PATH"
-./add_gpu_nodepool.sh
-```
+# From the repo root, after quota is
+# approved: add the GPU node pool.
+./scripts/add_gpu_nodepool.sh
 
-Then deploy NIM:
-
-```bash
+# Deploy NIM.
 export NGC_API_KEY='your-key-here'
-./deploy_nim_only.sh
+./scripts/deploy_nim_only.sh
 ```
 
 ### Option B: Start Fresh
@@ -91,12 +88,12 @@ gcloud container clusters delete nim-demo --zone=us-central1-a
 
 # Redeploy everything
 export NGC_API_KEY='your-key-here'
-./deploy_nim_gke.sh
+./scripts/deploy_nim_gke.sh
 ```
 
 ---
 
-## 📋 Alternative: Try Different GPUs
+## Alternative: Try Different GPUs
 
 If L4 quota takes too long, check if you have quota for:
 
@@ -123,7 +120,7 @@ gcloud compute accelerator-types list --filter="zone:us-central1"
 
 ---
 
-## 💰 Current Costs
+## Current Costs
 
 See the single cost table in [README cost table](../README.md#measured-results) and the
 measured run's cost breakdown in
@@ -131,7 +128,7 @@ measured run's cost breakdown in
 
 ---
 
-## 🗑️ Cleanup Options
+## Cleanup Options
 
 ### Keep Cluster (wait for approval)
 ```bash
@@ -149,17 +146,17 @@ gcloud container clusters delete nim-demo --zone=us-central1-a
 
 ---
 
-## 🎯 Recommended Next Steps
+## Recommended Next Steps
 
 1. **Request GPU quota now** (link above)
 2. **Keep the cluster running** (unverified estimate, control-plane fee only; see ../README.md#measured-results)
 3. **Check email** for approval notification
-4. **Run `./add_gpu_nodepool.sh`** when approved
-5. **Run `./deploy_nim_only.sh`** to complete deployment
+4. **Run `./scripts/add_gpu_nodepool.sh`** when approved
+5. **Run `./scripts/deploy_nim_only.sh`** to complete deployment
 
 ---
 
-## 🆘 Troubleshooting
+## Troubleshooting
 
 ### Quota request denied?
 - **Reason:** New accounts may have restrictions
@@ -180,7 +177,7 @@ gcloud container clusters delete nim-demo --zone=us-central1-a
 
 ---
 
-## 📞 Support Links
+## Support Links
 
 - **GCP Quotas:** https://console.cloud.google.com/iam-admin/quotas?project=YOUR_PROJECT_ID
 - **GCP Support:** https://cloud.google.com/support
@@ -189,16 +186,16 @@ gcloud container clusters delete nim-demo --zone=us-central1-a
 
 ---
 
-## ✅ Checklist
+## Checklist
 
 - [ ] Open quotas page
 - [ ] Filter for "NVIDIA L4" or "GPUs all regions"
 - [ ] Request quota increase (at least 1 GPU)
 - [ ] Submit request form
 - [ ] Wait for email confirmation
-- [ ] Run `./add_gpu_nodepool.sh`
-- [ ] Run `./deploy_nim_only.sh`
-- [ ] Test with `./test_nim.sh`
+- [ ] Run `./scripts/add_gpu_nodepool.sh`
+- [ ] Run `./scripts/deploy_nim_only.sh`
+- [ ] Test with `./scripts/test_nim.sh`
 
 ---
 

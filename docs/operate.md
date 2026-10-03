@@ -2,21 +2,16 @@
 
 ## Verify
 
-Health check:
+With the port forwarded to `localhost:8000`:
 
 ```bash
+# Health check.
 curl http://localhost:8000/v1/health/ready
-```
 
-List models:
-
-```bash
+# List models.
 curl http://localhost:8000/v1/models
-```
 
-Inference test:
-
-```bash
+# Inference test.
 curl -X POST http://localhost:8000/v1/chat/completions \
   -H 'Content-Type: application/json' \
   -d '{
@@ -32,28 +27,18 @@ This single call is not a benchmark. For measured latency and the method behind 
 
 ### Monitor
 
-Pod status:
-
 ```bash
-kubectl get pods -n nim -w
-```
-
-Logs:
-
-```bash
-kubectl logs -f my-nim-nim-llm-0 -n nim
-```
-
-GPU utilization:
-
-```bash
+# GPU utilization.
 kubectl exec -n nim my-nim-nim-llm-0 -- nvidia-smi
-```
 
-Resource usage:
-
-```bash
+# Resource usage.
 kubectl top pod -n nim
+
+# Logs. Follows until Ctrl-C.
+kubectl logs -f my-nim-nim-llm-0 -n nim
+
+# Pod status. Watches until Ctrl-C.
+kubectl get pods -n nim -w
 ```
 
 ### Scale
@@ -65,7 +50,8 @@ Manual scale (StatefulSet). Each replica needs its own L4; with the default
 kubectl scale statefulset my-nim-nim-llm --replicas=2 -n nim
 ```
 
-GPU node pool resize:
+<!-- separate: a resize bills a second L4 -->
+GPU node pool resize, which bills a second L4:
 
 ```bash
 gcloud container node-pools resize gpupool \
@@ -82,7 +68,8 @@ Remove deployment (keep cluster):
 helm uninstall my-nim -n nim
 ```
 
-Delete cluster, PVC, and list leftover disks:
+<!-- separate: cleanup deletes the cluster -->
+Or delete the cluster and PVC, and list leftover disks:
 
 ```bash
 ./scripts/cleanup.sh
@@ -104,17 +91,16 @@ Check: GPU availability, node readiness, quotas.
 kubectl get secret registry-secret -n nim
 ```
 
-Recreate both secrets if needed. Run this from the repo root. It recreates
-`registry-secret` and `ngc-api`; the key stays off the command line.
+Recreate both secrets if needed, then restart the pod. Run this from the
+repo root. It recreates `registry-secret` and `ngc-api`; the key stays off
+the command line.
 
 ```bash
+# Recreate the two secrets.
 PROJECT_ID="${PROJECT_ID:-x}" source scripts/config.env
 ngc_apply_secrets nim
-```
 
-Restart the pod:
-
-```bash
+# Restart the pod so it pulls again.
 kubectl delete pod my-nim-nim-llm-0 -n nim
 ```
 
@@ -126,15 +112,11 @@ See [runbooks/troubleshooting.md](../runbooks/troubleshooting.md) for complete p
 
 ## Production deployment (not measured)
 
-Deploy:
-
 ```bash
+# Deploy. Bills from here.
 ./scripts/deploy_nim_production.sh
-```
 
-Test:
-
-```bash
+# Test.
 ./scripts/test_nim_production.sh
 ```
 
