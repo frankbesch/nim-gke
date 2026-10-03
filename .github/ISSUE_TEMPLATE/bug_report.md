@@ -34,7 +34,7 @@ What actually happened.
 
 ## Logs
 
-```
+```bash
 # kubectl logs
 kubectl logs my-nim-nim-llm-0 -n nim
 

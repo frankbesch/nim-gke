@@ -183,7 +183,7 @@ exactly as before.
 ```
 
 **Output**:
-```
+```text
 ✅ Pod is running
 ✅ Models endpoint accessible
 ✅ Chat completion successful
