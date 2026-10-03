@@ -10,7 +10,7 @@ quoin_readme.py, a copy kept in step by promptkits/quoin/github/sync.py.
 from pathlib import Path
 
 from quoin_readme import (THEMES, GREEN, BLUE, OCHRE, RED, STEEL, M, R, text, rect, para, note,
-                          head, svg, pair, deploys, runner_ends, measured, autoscale)
+                          head, svg, pair, panels, deploys, runner_ends, measured, autoscale)
 
 HERE = Path(__file__).resolve().parent
 
@@ -81,40 +81,26 @@ AUTOSCALE = dict(
 
 
 def cost(c, spread=0.0, h=0):
-    """Posted Google Cloud list cost for both days, stacked by billing line.
-    spread makes the bar thicker and the key rows wider apart."""
-    lines = [("GPU, NVIDIA L4", 0.5608, c["series"][GREEN]),
-             ("GPU host VM, G2 cores and memory", 0.1471, c["series"][BLUE]),
-             ("System node, E2 cores and memory", 0.1887, c["series"][OCHRE]),
-             ("Balanced persistent disk", 0.0440, c["series"][STEEL]),
-             ("Kubernetes Engine fee, credited", 0.19, c["ink2"]),
-             ("Networking, credited", 0.05, c["ink2"]),
-             ("Cloud Monitoring", 0.01, c["ink2"])]
-    scale = (R - M) / 1.19
-    bh, row = 22 + round(30 * spread), 24 + round(10 * spread)
-    b, y = head("Posted Google Cloud cost by billing line", c)
-    sub, y = para(M, y, "All five starts, 2026-09-27 and 2026-09-28", 12, c["ink"], R - M)
-    b += sub
-    x = float(M)
-    for _, v, colour in lines:
-        b.append(rect(x, y - 6, v * scale - 1.5, bh, colour, rx=1))
-        x += v * scale
-    b.append(text(R, y + bh + 14, "$1.19 list", 13, c["ink"], anchor="end", weight=600))
-    y += bh + 38 + round(20 * spread)
-    b.append(f'<line x1="{M}" y1="{y - 12}" x2="{R}" y2="{y - 12}" stroke="{c["rule"]}"/>')
-    b.append(text(R, y + 10, "List cost", 12, c["ink2"], anchor="end"))
-    y += 34
-    for name, v, colour in lines:
-        b.append(rect(M, y - 10, 11, 11, colour))
-        b.append(text(M + 18, y, name, 12, c["ink"]))
-        shown = f"${v:.4f}" if v != round(v, 2) or v == 0.044 else f"${v:.2f}"
-        b.append(text(R, y, shown, 12, c["ink"], anchor="end"))
-        y += row
-    foot, y = note(y + 8, "Charged after credits: $0.95. Posted usage from the Cloud Billing report, "
-                   "read on 2026-10-02. Not an invoice.", c)
-    foot2, y = note(y + 4, "The report splits by day, not by run.", c)
-    desc = COST_DESC
-    return svg(max(y, h), "Posted Google Cloud cost by billing line", desc, b + foot + foot2, c)
+    """Posted Google Cloud list cost for both days, one panel per billing line on
+    one dollar scale (the ggplot2 trial's layout, Frank 2026-10-02)."""
+    lines = [("GPU, NVIDIA L4", 0.5608, GREEN),
+             ("GPU host VM, G2 cores and memory", 0.1471, BLUE),
+             ("System node, E2 cores and memory", 0.1887, OCHRE),
+             ("Balanced persistent disk", 0.0440, STEEL),
+             ("Kubernetes Engine fee, credited", 0.19, "ink2"),
+             ("Networking, credited", 0.05, "ink2"),
+             ("Cloud Monitoring", 0.01, "ink2")]
+
+    def shown(v):
+        return f"${v:.4f}" if v != round(v, 2) or v == 0.044 else f"${v:.2f}"
+
+    return panels(dict(
+        title="Posted Google Cloud cost by billing line",
+        sub="All five starts, 2026-09-27 and 2026-09-28: $1.19 list.",
+        panels=[(name, colour, [("", v, shown(v))]) for name, v, colour in lines],
+        notes=["Charged after credits: $0.95. Posted usage from the Cloud Billing report, "
+               "read on 2026-10-02. Not an invoice.", "The report splits by day, not by run."],
+        desc=COST_DESC), c, spread, h)
 
 
 def attempts(c, spread=0.0, h=0):
