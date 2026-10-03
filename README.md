@@ -113,55 +113,35 @@ versions are not yet tested here.
 (https://docs.nvidia.com/nim/large-language-models/latest/deployment/kubernetes-deployment/helm-k8s.html).
 `NGC_CLI_API_KEY` is still accepted as a fallback if `NGC_API_KEY` is unset.
 
-1. Set the two required variables.
+```bash
+# 1. Set the two required variables.
+export NGC_API_KEY='your-key-here'
+export PROJECT_ID='your-gcp-project'
 
-   ```bash
-   export NGC_API_KEY='your-key-here'
-   export PROJECT_ID='your-gcp-project'
-   ```
+# 2. Run the preflight checks.
+#    Read-only.
+./scripts/preflight.sh
 
-2. Run the preflight checks (read-only).
+# 3. Deploy.
+./scripts/deploy_nim_gke.sh
 
-   ```bash
-   ./scripts/preflight.sh
-   ```
+# 4. Verify the pod.
+kubectl get pods -n nim
 
-3. Deploy.
+# Forward the service port. It keeps
+# running: use a second terminal.
+kubectl port-forward -n nim \
+  svc/my-nim-nim-llm 8000:8000
 
-   ```bash
-   ./scripts/deploy_nim_gke.sh
-   ```
+# 5. Test.
+./scripts/test_nim.sh
 
-4. Verify the pod.
+# Or run the benchmark.
+python3 scripts/bench.py
 
-   ```bash
-   kubectl get pods -n nim
-   ```
-
-   Forward the service port.
-
-   ```bash
-   kubectl port-forward -n nim \
-     svc/my-nim-nim-llm 8000:8000
-   ```
-
-5. Test.
-
-   ```bash
-   ./scripts/test_nim.sh
-   ```
-
-   Or run the benchmark.
-
-   ```bash
-   python3 scripts/bench.py
-   ```
-
-6. Tear down.
-
-   ```bash
-   ./scripts/cleanup.sh
-   ```
+# 6. Tear down.
+./scripts/cleanup.sh
+```
 
 All other settings (region, zone, cluster name, machine types, chart
 version, release name, namespace) come from `scripts/config.env`. Override
