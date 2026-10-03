@@ -1,0 +1,43 @@
+<svg viewBox="0 0 360 620" xmlns="http://www.w3.org/2000/svg" role="img" font-family='ui-monospace, "SFMono-Regular", "SF Mono", Menlo, Consolas, monospace'>
+<title>Posted Google Cloud cost by billing line</title>
+<desc>Posted list cost $1.19 for five starts: L4 GPU $0.5608, G2 host VM $0.1471, E2 system node $0.1887, persistent disk $0.0440, Kubernetes Engine fee $0.19 credited, networking $0.05 credited, Cloud Monitoring $0.01. Charged after credits $0.95.</desc>
+<rect width="360" height="620" rx="6" fill="#FCFBF9"/>
+<text x="16" y="30" font-size="15" fill="#2B2926" font-weight="600">Posted Google Cloud cost by billing</text>
+<text x="16" y="50" font-size="15" fill="#2B2926" font-weight="600">line</text>
+<line x1="16" y1="62" x2="344" y2="62" stroke="#D2CCC3"/>
+<text x="16" y="84" font-size="12" fill="#6A625A">All five starts, 2026-09-27 and 2026-09-28:</text>
+<text x="16" y="101" font-size="12" fill="#6A625A">$1.19 list.</text>
+<text x="16" y="126" font-size="13" fill="#2B2926" font-weight="600">GPU, NVIDIA L4</text>
+<text x="344" y="126" font-size="12" fill="#2B2926" text-anchor="end">$0.5608</text>
+<rect x="16.0" y="132" width="328.0" height="12" rx="2" fill="#EBE6DD"/>
+<rect x="16.0" y="132" width="328.0" height="12" rx="2" fill="#33703F"/>
+<text x="16" y="188" font-size="13" fill="#2B2926" font-weight="600">GPU host VM, G2 cores and memory</text>
+<text x="344" y="188" font-size="12" fill="#2B2926" text-anchor="end">$0.1471</text>
+<rect x="16.0" y="194" width="328.0" height="12" rx="2" fill="#EBE6DD"/>
+<rect x="16.0" y="194" width="86.0" height="12" rx="2" fill="#0084A9"/>
+<text x="16" y="250" font-size="13" fill="#2B2926" font-weight="600">System node, E2 cores and memory</text>
+<text x="344" y="250" font-size="12" fill="#2B2926" text-anchor="end">$0.1887</text>
+<rect x="16.0" y="256" width="328.0" height="12" rx="2" fill="#EBE6DD"/>
+<rect x="16.0" y="256" width="110.4" height="12" rx="2" fill="#916A0B"/>
+<text x="16" y="312" font-size="13" fill="#2B2926" font-weight="600">Balanced persistent disk</text>
+<text x="344" y="312" font-size="12" fill="#2B2926" text-anchor="end">$0.0440</text>
+<rect x="16.0" y="318" width="328.0" height="12" rx="2" fill="#EBE6DD"/>
+<rect x="16.0" y="318" width="25.7" height="12" rx="2" fill="#23749E"/>
+<text x="16" y="374" font-size="13" fill="#2B2926" font-weight="600">Kubernetes Engine fee, credited</text>
+<text x="344" y="374" font-size="12" fill="#2B2926" text-anchor="end">$0.19</text>
+<rect x="16.0" y="380" width="328.0" height="12" rx="2" fill="#EBE6DD"/>
+<rect x="16.0" y="380" width="111.1" height="12" rx="2" fill="#6A625A"/>
+<text x="16" y="436" font-size="13" fill="#2B2926" font-weight="600">Networking, credited</text>
+<text x="344" y="436" font-size="12" fill="#2B2926" text-anchor="end">$0.05</text>
+<rect x="16.0" y="442" width="328.0" height="12" rx="2" fill="#EBE6DD"/>
+<rect x="16.0" y="442" width="29.2" height="12" rx="2" fill="#6A625A"/>
+<text x="16" y="498" font-size="13" fill="#2B2926" font-weight="600">Cloud Monitoring</text>
+<text x="344" y="498" font-size="12" fill="#2B2926" text-anchor="end">$0.01</text>
+<rect x="16.0" y="504" width="328.0" height="12" rx="2" fill="#EBE6DD"/>
+<rect x="16.0" y="504" width="5.8" height="12" rx="2" fill="#6A625A"/>
+<line x1="16" y1="524" x2="344" y2="524" stroke="#D2CCC3"/>
+<text x="16" y="544" font-size="12" fill="#6A625A">Charged after credits: $0.95. Posted usage</text>
+<text x="16" y="561" font-size="12" fill="#6A625A">from the Cloud Billing report, read on</text>
+<text x="16" y="578" font-size="12" fill="#6A625A">2026-10-02. Not an invoice.</text>
+<text x="16" y="599" font-size="12" fill="#6A625A">The report splits by day, not by run.</text>
+</svg>
