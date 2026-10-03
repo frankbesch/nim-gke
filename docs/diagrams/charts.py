@@ -10,7 +10,7 @@ quoin_readme.py, a copy kept in step by promptkits/quoin/github/sync.py.
 from pathlib import Path
 
 from quoin_readme import (THEMES, GREEN, BLUE, OCHRE, RED, STEEL, M, R, text, rect, para, note,
-                          head, svg, pair, panels, deploys, runner_ends, measured, autoscale)
+                          head, svg, pair, panels, deploys, runner_ends, measured, autoscale, steps)
 
 HERE = Path(__file__).resolve().parent
 
@@ -151,6 +151,39 @@ COMPARE_COST = dict(  # docs/compared-with page list, "Posted list cost" rows
 )
 
 
+# docs/ARCHITECTURE.md: the request path beside the network path inside the cluster.
+ARCH_REQUEST = dict(
+    title="Request path",
+    steps=[("Client request", "curl or an OpenAI SDK", None, "external"),
+           ("Port forward", "localhost:8000", None, "external"),
+           ("ClusterIP Service", "my-nim-nim-llm:8000", None, "bus"),
+           ("StatefulSet pod", "my-nim-nim-llm-0", None, "backend"),
+           ("NIM container", "nvcr.io/nim/meta/", "llama3-8b-instruct:1.0.0", "backend"),
+           ("Inference backend", "vllm-fp16-tp1 on the L4,", "chosen by NIM at startup", "backend"),
+           ("NVIDIA L4 GPU", "24 GB, Tensor Cores", None, "cloud")],
+    note="Port forward is the development path; the kit opens no public endpoint.",
+    desc=("A client request (curl or an OpenAI SDK) goes to the port forward on localhost:8000, then the "
+          "ClusterIP Service my-nim-nim-llm:8000, the StatefulSet pod my-nim-nim-llm-0, the NIM container "
+          "nvcr.io/nim/meta/llama3-8b-instruct:1.0.0, the inference backend (profile vllm-fp16-tp1 on the "
+          "L4, chosen by NIM at startup), and the NVIDIA L4 GPU with 24 GB."),
+)
+ARCH_NETWORK = dict(
+    title="Port forward tunnel",
+    steps=[("Your machine", "localhost:8000", None, "external"),
+           ("kubectl port-forward", "service/my-nim-nim-llm 8000:8000", None, "external"),
+           ("Kubernetes API server", "authenticates the tunnel", None, "bus"),
+           ("GPU node", "g2-standard-4, one L4", None, "cloud"),
+           ("NIM pod", "port 8000", None, "backend")],
+    note=("Inside the cluster, the Service (ClusterIP 34.118.X.X, DNS my-nim-nim-llm.nim.svc."
+          "cluster.local) forwards through kube-proxy iptables rules to the pod IP."),
+    desc=("The port forward tunnels localhost:8000 on your machine through kubectl port-forward "
+          "service/my-nim-nim-llm 8000:8000, the Kubernetes API server, and the GPU node "
+          "(g2-standard-4, one L4) to port 8000 on the NIM pod. Inside the cluster, the Service "
+          "(ClusterIP 34.118.X.X, DNS my-nim-nim-llm.nim.svc.cluster.local) forwards through kube-proxy "
+          "iptables rules to the pod IP."),
+)
+
+
 # The README shows these as pairs, one per line, at one height (D-262).
 PAIRS = [("measured", lambda c, s=0.0, h=0: measured(MEASURED, c, s, h), "attempts", attempts),
          ("deploys", lambda c, s=0.0, h=0: deploys(DEPLOYS, c, s, h), "cost", cost),
@@ -160,7 +193,9 @@ PAIRS = [("measured", lambda c, s=0.0, h=0: measured(MEASURED, c, s, h), "attemp
          # partner's height: compared-with page, then runs page (D-262, FBOS D-267).
          ("compare-measured", lambda c, s=0.0, h=0: measured(MEASURED, c, s, h),
           "compare-cost", lambda c, s=0.0, h=0: panels(COMPARE_COST, c, s, h)),
-         ("runs-cost", cost, "runs-attempts", attempts)]
+         ("runs-cost", cost, "runs-attempts", attempts),
+         ("architecture-request", lambda c, s=0.0, h=0: steps(ARCH_REQUEST, c, s, h),
+          "architecture-network", lambda c, s=0.0, h=0: steps(ARCH_NETWORK, c, s, h))]
 
 
 def main():

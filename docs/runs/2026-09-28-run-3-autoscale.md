@@ -42,18 +42,48 @@ Cloud Logging, `container.googleapis.com/cluster-autoscaler-visibility`:
 
 ## Timeline (UTC, from phases.log, node and pod data, and the autoscaler log)
 
-| Phase | Start | End | Duration |
-|---|---|---|---|
-| Preflight | 19:48:30 | 19:48:35 | 5 s |
-| Create cluster + 0-node GPU pool, helm install | 19:48:35 | 19:55:41 | 7 m 06 s |
-| **Scale-up: trigger to GPU node Ready** | 19:55:42 | 19:56:59 | **1 m 17 s** (node created 19:56:49) |
-| Image pull and model load to pod Ready | 19:56:59 | 20:04:37 | 7 m 38 s |
-| Bench | 20:04:44 | 20:08:52 | 4 m 08 s |
-| **Scale-down: replicas=0 to GPU node gone** | 20:08:53 | 20:21:25 | **12 m 32 s** |
-| of which: autoscaler decision | 20:08:53 | 20:20:05 | 11 m 12 s |
-| of which: node removal after decision | 20:20:05 | 20:21:25 | 1 m 20 s |
-| Cleanup (uninstall, PVC and PV wait, cluster delete, disk check) | 20:21:28 | 20:27:19 | 5 m 51 s |
-| **Script start to pod Ready** | 19:48:30 | 20:04:37 | 16 m 07 s |
+Listed by phase:
+
+- **Preflight**
+  - Start: 19:48:30
+  - End: 19:48:35
+  - Duration: 5 s
+- **Create cluster + 0-node GPU pool, helm install**
+  - Start: 19:48:35
+  - End: 19:55:41
+  - Duration: 7 m 06 s
+- **Scale-up: trigger to GPU node Ready**
+  - Start: 19:55:42
+  - End: 19:56:59
+  - Duration: **1 m 17 s** (node created 19:56:49)
+- **Image pull and model load to pod Ready**
+  - Start: 19:56:59
+  - End: 20:04:37
+  - Duration: 7 m 38 s
+- **Bench**
+  - Start: 20:04:44
+  - End: 20:08:52
+  - Duration: 4 m 08 s
+- **Scale-down: replicas=0 to GPU node gone**
+  - Start: 20:08:53
+  - End: 20:21:25
+  - Duration: **12 m 32 s**
+- **of which: autoscaler decision**
+  - Start: 20:08:53
+  - End: 20:20:05
+  - Duration: 11 m 12 s
+- **of which: node removal after decision**
+  - Start: 20:20:05
+  - End: 20:21:25
+  - Duration: 1 m 20 s
+- **Cleanup (uninstall, PVC and PV wait, cluster delete, disk check)**
+  - Start: 20:21:28
+  - End: 20:27:19
+  - Duration: 5 m 51 s
+- **Script start to pod Ready**
+  - Start: 19:48:30
+  - End: 20:04:37
+  - Duration: 16 m 07 s
 
 The 11-minute wait before the scale-down decision is GKE's own unneeded-node
 delay; GKE does not document the value, so this is one observation, not a
@@ -64,25 +94,50 @@ spec.
 `scripts/bench.py`: 20 requests, max_tokens 256, temperature 0; 5 streamed
 requests for time to first token. Backend profile `vllm-fp16-tp1`.
 
-| Metric | Run 3 | Run 2 | Run 1 |
-|---|---|---|---|
-| Latency p50 / p95 | 11.1 s / 16.0 s | 11.1 s / 16.1 s | 11.1 s / 16.0 s |
-| Output throughput p50 (min) | 15.9 (15.8) tok/s | 15.9 (15.5) tok/s | 15.9 (15.2) tok/s |
-| Time to first token p50 / max | 0.19 s / 0.20 s | 0.19 s / 0.21 s | 0.29 s / 0.30 s |
+Listed by metric:
+
+- **Latency p50 / p95**
+  - Run 3: 11.1 s / 16.0 s
+  - Run 2: 11.1 s / 16.1 s
+  - Run 1: 11.1 s / 16.0 s
+- **Output throughput p50 (min)**
+  - Run 3: 15.9 (15.8) tok/s
+  - Run 2: 15.9 (15.5) tok/s
+  - Run 1: 15.9 (15.2) tok/s
+- **Time to first token p50 / max**
+  - Run 3: 0.19 s / 0.20 s
+  - Run 2: 0.19 s / 0.21 s
+  - Run 1: 0.29 s / 0.30 s
 
 Autoscaling does not change inference once the node is up, as expected.
 n=20 and n=5 per run; not a load test.
 
 ## Cost (list prices as in run 1; durations are upper bounds)
 
-| Item | Minutes | Rate | Cost |
-|---|---|---|---|
-| GKE zonal cluster fee | 38.6 | $0.1000/h | $0.064 |
-| e2-standard-4 system node (cluster lifetime, upper bound) | 38.6 | $0.1340/h | $0.086 |
-| g2-standard-4 with 1× L4 (created 19:56:49, gone 20:21:25) | 24.6 | $0.7068/h | $0.290 |
-| 2 × 100 GiB boot disks (assumed GKE default) | 38.6 / 24.6 | $0.0137/h each | $0.014 |
-| 50 GiB model-cache PVC | ~26 | $0.0068/h | $0.003 |
-| **Total for the run** | | | **≈ $0.46** |
+Listed by item:
+
+- **GKE zonal cluster fee**
+  - Minutes: 38.6
+  - Rate: $0.1000/h
+  - Cost: $0.064
+- **e2-standard-4 system node (cluster lifetime, upper bound)**
+  - Minutes: 38.6
+  - Rate: $0.1340/h
+  - Cost: $0.086
+- **g2-standard-4 with 1× L4 (created 19:56:49, gone 20:21:25)**
+  - Minutes: 24.6
+  - Rate: $0.7068/h
+  - Cost: $0.290
+- **2 × 100 GiB boot disks (assumed GKE default)**
+  - Minutes: 38.6 / 24.6
+  - Rate: $0.0137/h each
+  - Cost: $0.014
+- **50 GiB model-cache PVC**
+  - Minutes: ~26
+  - Rate: $0.0068/h
+  - Cost: $0.003
+- **Total for the run**
+  - Cost: **≈ $0.46**
 
 The GPU node billed 24.6 min of the 38.6-min run. Of that, 12.5 min was the
 scale-down wait with no pod on the node: the price of scale-to-zero on GKE.

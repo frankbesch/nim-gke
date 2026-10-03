@@ -23,14 +23,26 @@ Notes:
 
 ## Prerequisites
 
-| Requirement | Version | Purpose |
-|-------------|---------|---------|
-| `gcloud` CLI | Latest | GCP authentication, cluster management |
-| `kubectl` | 1.28+ | Kubernetes operations |
-| `helm` | 3.0+ | Chart deployment |
-| NGC API Key | — | NIM image registry auth |
-| GCP Project | — | Billing enabled |
-| GPU Quota | 1× L4 | us-central1 or compatible region |
+Listed by requirement:
+
+- **`gcloud` CLI**
+  - Version: Latest
+  - Purpose: GCP authentication, cluster management
+- **`kubectl`**
+  - Version: 1.28+
+  - Purpose: Kubernetes operations
+- **`helm`**
+  - Version: 3.0+
+  - Purpose: Chart deployment
+- **NGC API Key**
+  - Version: —
+  - Purpose: NIM image registry auth
+- **GCP Project**
+  - Version: —
+  - Purpose: Billing enabled
+- **GPU Quota**
+  - Version: 1× L4
+  - Purpose: us-central1 or compatible region
 
 **GPU quota approval**: Required before deployment. See [GPU_QUOTA_GUIDE.md](GPU_QUOTA_GUIDE.md).
 

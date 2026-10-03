@@ -6,21 +6,25 @@ Technical reference for GPU-accelerated inference on GKE.
 
 ## System Overview
 
-```
-User Request
-    ↓
-Port Forward (localhost:8000)
-    ↓
-ClusterIP Service (my-nim-nim-llm:8000)
-    ↓
-StatefulSet (my-nim-nim-llm-0)
-    ↓
-NIM Container (nvcr.io/nim/meta/llama3-8b-instruct:1.0.0)
-    ↓
-Inference backend (profile vllm-fp16-tp1 on the L4, chosen by NIM at startup)
-    ↓
-NVIDIA L4 GPU (24GB VRAM, Tensor Cores)
-```
+<p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="diagrams/architecture-request-dark.svg"/><img width="400" align="top" src="diagrams/architecture-request-light.svg" alt="Diagram: the request path from the client to the L4 GPU. Text version below."/></picture> <picture><source media="(prefers-color-scheme: dark)" srcset="diagrams/architecture-network-dark.svg"/><img width="400" align="top" src="diagrams/architecture-network-light.svg" alt="Diagram: the port forward tunnel from localhost to the NIM pod. Text version below."/></picture></p>
+
+<details><summary>Text version of the diagrams</summary>
+
+A client request (curl or an OpenAI SDK) goes to the port forward on
+`localhost:8000`, then the ClusterIP Service `my-nim-nim-llm:8000`, the
+StatefulSet pod `my-nim-nim-llm-0`, the NIM container
+`nvcr.io/nim/meta/llama3-8b-instruct:1.0.0`, the inference backend (profile
+`vllm-fp16-tp1` on the L4, chosen by NIM at startup), and the NVIDIA L4 GPU
+(24 GB, Tensor Cores).
+
+The port forward tunnels `localhost:8000` through `kubectl port-forward
+service/my-nim-nim-llm 8000:8000`, the Kubernetes API server, and the GPU
+node (g2-standard-4, one L4) to port 8000 on the NIM pod. Inside the cluster,
+the Service (ClusterIP 34.118.X.X, DNS
+`my-nim-nim-llm.nim.svc.cluster.local`) forwards through kube-proxy iptables
+rules to the pod IP.
+
+</details>
 
 ---
 
@@ -74,14 +78,26 @@ Profile selection is visible in the pod log at startup
 Facts below come from `helm template my-nim` on chart `nim-llm-1.3.0` with this
 repo's values; render it yourself to see full manifests.
 
-| Resource | Name | Notes |
-|---|---|---|
-| StatefulSet | `my-nim-nim-llm` | 1 replica; pod `my-nim-nim-llm-0`; label `app.kubernetes.io/name: nim-llm` |
-| Service (ClusterIP) | `my-nim-nim-llm` | port 8000; target of `kubectl port-forward` |
-| Service (headless) | `my-nim-nim-llm-sts` | `clusterIP: None`; StatefulSet identity |
-| Volume | `model-store` | mounted at `/model-store`; PVC from `volumeClaimTemplates`, retained when the pod is deleted (cleanup.sh deletes it) |
-| Probes | `/v1/health/live`, `/v1/health/ready` | liveness, readiness, and startup |
-| ConfigMap | `my-nim-nim-llm-scripts-configmap` | chart helper scripts, mounted at `/scripts` |
+Listed by resource:
+
+- **StatefulSet**
+  - Name: `my-nim-nim-llm`
+  - Notes: 1 replica; pod `my-nim-nim-llm-0`; label `app.kubernetes.io/name: nim-llm`
+- **Service (ClusterIP)**
+  - Name: `my-nim-nim-llm`
+  - Notes: port 8000; target of `kubectl port-forward`
+- **Service (headless)**
+  - Name: `my-nim-nim-llm-sts`
+  - Notes: `clusterIP: None`; StatefulSet identity
+- **Volume**
+  - Name: `model-store`
+  - Notes: mounted at `/model-store`; PVC from `volumeClaimTemplates`, retained when the pod is deleted (cleanup.sh deletes it)
+- **Probes**
+  - Name: `/v1/health/live`, `/v1/health/ready`
+  - Notes: liveness, readiness, and startup
+- **ConfigMap**
+  - Name: `my-nim-nim-llm-scripts-configmap`
+  - Notes: chart helper scripts, mounted at `/scripts`
 
 #### Secrets
 
@@ -134,7 +150,7 @@ throughput 15.9 tokens/s. These are n=20 and n=5 samples, not a load test.
 
 ### GPU Memory
 
-```
+```text
 Total: 24GB L4 VRAM
 
 Breakdown: not measured. Model weights take most of the memory; the KV
@@ -149,7 +165,7 @@ cache uses the rest and scales with concurrent requests.
 ### Node Resources
 
 **g2-standard-4**:
-```
+```text
 Total:
 - vCPU: 4 cores
 - Memory: 16GB
@@ -176,15 +192,9 @@ Remaining capacity:
 
 ### Internal Communication
 
-```
-Pod (10.88.X.X)
-  ↓
-Service (ClusterIP: 34.118.X.X)
-  ↓
-kube-proxy (iptables rules)
-  ↓
-Pod IP
-```
+A pod (10.88.X.X) reaches the Service (ClusterIP 34.118.X.X); kube-proxy
+forwards through iptables rules to the pod IP. Both paths are drawn under
+[System Overview](#system-overview).
 
 **Service Discovery**:
 - DNS: `my-nim-nim-llm.nim.svc.cluster.local`
@@ -198,10 +208,8 @@ Pod IP
 kubectl port-forward service/my-nim-nim-llm 8000:8000 -n nim
 ```
 
-Creates tunnel:
-```
-localhost:8000 → kubectl proxy → API server → Node → Pod:8000
-```
+It tunnels `localhost:8000` through kubectl, the API server, and the node to
+pod port 8000 (drawn under [System Overview](#system-overview)).
 
 **Production alternative**: Ingress + LoadBalancer
 - Terminate TLS at Ingress

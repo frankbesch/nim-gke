@@ -87,7 +87,7 @@ Follow [Conventional Commits](https://www.conventionalcommits.org/):
 - `test:` Test additions/changes
 
 Examples:
-```
+```text
 feat: add A100 GPU support to deployment script
 fix: resolve secret key mismatch in NIM pod
 docs: update cost estimates for us-west1
@@ -112,7 +112,7 @@ Before submitting a PR:
 
 ## Project Structure
 
-```
+```text
 nim-gke/
 ├── charts/          # Helm charts and values
 ├── scripts/         # Operational scripts

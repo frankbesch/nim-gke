@@ -35,7 +35,7 @@ In the **Filter** box at the top, enter one of:
 3. Fill out the form:
    - **New limit:** `1` (or more if needed)
    - **Request description:** 
-     ```
+     ```text
      Need GPU quota for NVIDIA NIM deployment on GKE.
      Running AI/ML inference workloads with Llama 3 8B model.
      Requesting 1x NVIDIA L4 GPU in us-central1.
@@ -52,12 +52,20 @@ In the **Filter** box at the top, enter one of:
 
 ## Timeline
 
-| Action | Duration | Status |
-|--------|----------|--------|
-| Submit quota request | not measured | ⏸️ Pending |
-| Google approval | varies (not measured) | ⏸️ Waiting |
-| Add GPU node pool | 1 m 02 s (measured run) | ⏸️ After approval |
-| Deploy NIM | 20 m 19 s script start to Ready (measured run) | ⏸️ After GPU nodes |
+Listed by action:
+
+- **Submit quota request**
+  - Duration: not measured
+  - Status: ⏸️ Pending
+- **Google approval**
+  - Duration: varies (not measured)
+  - Status: ⏸️ Waiting
+- **Add GPU node pool**
+  - Duration: 1 m 02 s (measured run)
+  - Status: ⏸️ After approval
+- **Deploy NIM**
+  - Duration: 20 m 19 s script start to Ready (measured run)
+  - Status: ⏸️ After GPU nodes
 
 ---
 

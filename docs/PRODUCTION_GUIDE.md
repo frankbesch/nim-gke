@@ -15,12 +15,20 @@ guide that is not sourced from that receipt as a plan, not a result.
 
 ## Scripts Overview
 
-| Script | Purpose | Status |
-|--------|---------|-------------------|
-| **`setup_environment.sh`** | Environment validation | Checks tools, auth, quotas |
-| **`deploy_nim_production.sh`** | Autoscaling deployment | Unmeasured; not the receipt run |
-| **`test_nim_production.sh`** | Load/perf testing | Unmeasured |
-| **`cleanup.sh`** | Resource cleanup | Deletes cluster/node pool/PVC |
+Listed by script:
+
+- **`setup_environment.sh`**
+  - Purpose: Environment validation
+  - Status: Checks tools, auth, quotas
+- **`deploy_nim_production.sh`**
+  - Purpose: Autoscaling deployment
+  - Status: Unmeasured; not the receipt run
+- **`test_nim_production.sh`**
+  - Purpose: Load/perf testing
+  - Status: Unmeasured
+- **`cleanup.sh`**
+  - Purpose: Resource cleanup
+  - Status: Deletes cluster/node pool/PVC
 
 All scripts source `scripts/config.env`. `PROJECT_ID` is required there with
 no default; scripts no longer call `gcloud config set project`.
