@@ -14,7 +14,7 @@ Be respectful, constructive, and professional. Focus on what's best for the comm
 
 ### Reporting Issues
 
-Use the [bug report template](.github/ISSUE_TEMPLATE/bug_report.md) and include:
+Use the [bug report template](ISSUE_TEMPLATE/bug_report.md) and include:
 
 - Environment details (GKE version, GPU type, region)
 - Steps to reproduce
@@ -29,7 +29,7 @@ Use the [bug report template](.github/ISSUE_TEMPLATE/bug_report.md) and include:
 4. **Test** your changes (deploy and validate)
 5. **Commit** with conventional commits: `feat:`, `fix:`, `docs:`, `chore:`
 6. **Push** to your fork
-7. **Open a PR** using the [PR template](.github/PULL_REQUEST_TEMPLATE.md)
+7. **Open a PR** using the [PR template](PULL_REQUEST_TEMPLATE.md)
 
 ---
 

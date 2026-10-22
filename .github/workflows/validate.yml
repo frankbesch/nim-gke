@@ -100,7 +100,7 @@ jobs:
           rc=0
           grep -rnP --exclude-dir=.git \
               '(NGC_(CLI_)?API_KEY)\s*=\s*[\\"'"'"']*(?!\$)(?!your-key)(?!your_key)(?!<)(?!\.\.\.)(?!nvapi-x)[^"'"'"'\\\s]+' \
-              scripts/ docs/ runbooks/ examples/ README.md QUICK_REFERENCE.md CONTRIBUTING.md || rc=$?
+              scripts/ docs/ runbooks/ examples/ README.md docs/QUICK_REFERENCE.md .github/CONTRIBUTING.md || rc=$?
           if [ "$rc" -eq 0 ]; then
             echo "Error: Found a literal NGC key value assigned in source"
             exit 1
@@ -113,7 +113,7 @@ jobs:
           # excluding the documented placeholder pattern (nvapi-x...x).
           rc=0
           grep -rnP --exclude-dir=.git \
-              'nvapi-(?!x{15,})[A-Za-z0-9_-]{20,}' scripts/ docs/ runbooks/ examples/ README.md QUICK_REFERENCE.md CONTRIBUTING.md || rc=$?
+              'nvapi-(?!x{15,})[A-Za-z0-9_-]{20,}' scripts/ docs/ runbooks/ examples/ README.md docs/QUICK_REFERENCE.md .github/CONTRIBUTING.md || rc=$?
           if [ "$rc" -eq 0 ]; then
             echo "Error: Found an NGC key-shaped string"
             exit 1
