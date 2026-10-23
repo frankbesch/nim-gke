@@ -102,7 +102,7 @@ an optional override.
 - `scripts/run_measured.sh`: one command for a whole measured run, with a
   trap and a watchdog that delete the cluster if the run dies.
 - A troubleshooting runbook (`runbooks/troubleshooting.md`) and a quick
-  reference (`QUICK_REFERENCE.md`).
+  reference (`docs/QUICK_REFERENCE.md`).
 - `scripts/deploy_nim_production.sh`: an alternate path with an autoscaling
   GPU node pool (0-2 nodes) and a system pool with a minimum of 1 node. This
   path has **not** been measured; treat its numbers as design targets, not
