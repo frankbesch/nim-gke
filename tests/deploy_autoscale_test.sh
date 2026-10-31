@@ -16,6 +16,7 @@ export STUB_LOG="${TMP_DIR}/calls.log"
 export PATH="${STUB_DIR}:${PATH}"
 export PROJECT_ID="test-project"
 export NGC_API_KEY="test-key"
+export API_ALLOWED_CIDR="203.0.113.10/32"
 export STUB_CLUSTER=present   # skip cluster creation; this test is about gpupool
 export STUB_NODEPOOL=absent   # force the node-pools create branch
 

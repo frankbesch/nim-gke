@@ -32,6 +32,7 @@ validate_environment() {
     fi
 
     require_project_id
+    require_api_allowed_cidr
 
     # Check GCP authentication
     if ! gcloud auth list --filter=status:ACTIVE --format="value(account)" | grep -q .; then
@@ -89,6 +90,8 @@ create_cluster() {
             --max-nodes=3 \
             --enable-autorepair \
             --enable-autoupgrade \
+            --enable-master-authorized-networks \
+            --master-authorized-networks="${API_ALLOWED_CIDR}" \
             --quiet
 
         echo "✅ GKE cluster created"

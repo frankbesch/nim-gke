@@ -27,6 +27,7 @@ else
   echo "✅ NGC_API_KEY is set"
 fi
 require_project_id
+require_api_allowed_cidr
 
 # --- [2] Verify Prerequisites ---
 echo ""
@@ -68,7 +69,9 @@ else
       --location="${ZONE}" \
       --release-channel=rapid \
       --machine-type="${CLUSTER_MACHINE_TYPE}" \
-      --num-nodes=1
+      --num-nodes=1 \
+      --enable-master-authorized-networks \
+      --master-authorized-networks="${API_ALLOWED_CIDR}"
 
   echo "✅ GKE cluster created successfully"
 fi

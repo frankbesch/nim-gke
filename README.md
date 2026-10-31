@@ -115,9 +115,11 @@ use.
 `NGC_CLI_API_KEY` is still accepted as a fallback if `NGC_API_KEY` is unset.
 
 ```bash
-# 1. Set the two required variables.
+# 1. Set the three required variables.
 export NGC_API_KEY='your-key-here'
 export PROJECT_ID='your-gcp-project'
+export API_ALLOWED_CIDR=\
+YOUR_PUBLIC_IPV4/32
 
 # 2. Run the preflight checks.
 #    Read-only.
@@ -169,9 +171,7 @@ The runner sets a trap and arms a watchdog in its own session. The steps run: de
 Pick one run; each bills once.
 
 ```bash
-# Set the two required variables.
-export PROJECT_ID='your-gcp-project'
-export NGC_API_KEY='your-key-here'
+# Export the step 1 variables first.
 
 # Fixed pool:
 scripts/run_measured.sh \
@@ -228,6 +228,7 @@ NVIDIA's OCI repository also has a vLLM sample with a preflight and a clean-tear
 - **Regional availability**: L4 not in all GCP zones
 - **Repeatability**: two fixed-pool runs and one autoscale run. That is not a repeatability result
 - **Cost by run**: Google's billing report splits by day, so runs 1 and 2 share one posted figure
+- **Control plane**: the GKE API endpoint is public. Deploy requires an explicit `API_ALLOWED_CIDR` (your public IPv4 /32 or trusted network), set as master authorized networks; missing, invalid, /0, or wider-than-/16 input is rejected before any gcloud call
 - **Off support matrix**: see [Hardware support](#hardware-support) above
 
 ## More
