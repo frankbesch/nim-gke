@@ -9,6 +9,7 @@ One-page operational reference.
 ```bash
 export NGC_API_KEY='your-key-here'   # NGC_CLI_API_KEY accepted as a fallback
 export PROJECT_ID='your-gcp-project'
+export API_ALLOWED_CIDR='YOUR_PUBLIC_IPV4/32'  # your IPv4 /32; /16 or narrower
 cd ~/nim-gke
 ./scripts/preflight.sh
 ./scripts/deploy_nim_gke.sh
@@ -116,6 +117,7 @@ gcloud container clusters get-credentials nim-demo --zone=us-central1-a
 ```bash
 export NGC_API_KEY='...'            # Required
 export PROJECT_ID='your-gcp-project' # Required, no default
+export API_ALLOWED_CIDR='YOUR_PUBLIC_IPV4/32' # Required: control-plane allowlist, /16 or narrower
 export REGION='us-central1'         # Optional override (default shown)
 export ZONE='us-central1-a'         # Optional override (default shown)
 ```

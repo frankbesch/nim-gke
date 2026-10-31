@@ -8,9 +8,11 @@ Step 3 bills from the first node it creates. The README
 ```bash
 # 1. Get an NGC API key at
 #    https://org.ngc.nvidia.com/setup/api-key
-#    and set the two variables.
+#    and set the three variables.
 export NGC_API_KEY='your-key-here'
 export PROJECT_ID='your-gcp-project'
+# Your public IPv4 /32 (or a trusted network of /16 or narrower).
+export API_ALLOWED_CIDR='YOUR_PUBLIC_IPV4/32'
 
 # 2. Validate prerequisites.
 #    Read-only.

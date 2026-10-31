@@ -18,6 +18,7 @@ other value has a default and can be overridden by exporting it first).
 ```bash
 export NGC_API_KEY='your-key'   # NGC_CLI_API_KEY accepted as a fallback
 export PROJECT_ID='your-gcp-project'
+export API_ALLOWED_CIDR='YOUR_PUBLIC_IPV4/32'   # control-plane allowlist
 ./scripts/deploy_nim_gke.sh
 ```
 
@@ -120,6 +121,7 @@ duration.
 ```bash
 export NGC_API_KEY='your-key'   # NGC_CLI_API_KEY accepted as a fallback
 export PROJECT_ID='your-gcp-project'
+export API_ALLOWED_CIDR='YOUR_PUBLIC_IPV4/32'   # control-plane allowlist
 ./scripts/run_measured.sh OUT_DIR
 ```
 
